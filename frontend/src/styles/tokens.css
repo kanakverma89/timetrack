@@ -1,0 +1,41 @@
+:root {
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Neutral surfaces */
+  --color-bg: #f4f7f8;
+  --color-surface: #ffffff;
+  --color-border: #cfd8dc;
+  --color-border-strong: #90a4ae;
+
+  /* Text (all >= 4.5:1 on --color-surface) */
+  --color-text: #17262b;
+  --color-text-muted: #4a5a62;
+
+  /* Teal accent (white text on it is 5.5:1) */
+  --color-accent: #0f766e;
+  --color-accent-hover: #0b5d57;
+  --color-accent-soft: #e0f2f1;
+  --color-focus: #0b4f6c;
+
+  /* Status pairs: text colour on background, each >= 7:1 */
+  --status-draft-fg: #37474f;
+  --status-draft-bg: #e3e8ea;
+  --status-submitted-fg: #1e3a8a;
+  --status-submitted-bg: #dbeafe;
+  --status-approved-fg: #14532d;
+  --status-approved-bg: #dcfce7;
+  --status-rejected-fg: #7f1d1d;
+  --status-rejected-bg: #fee2e2;
+  --color-warning-bg: #fff4e0;
+  --color-warning-border: #b45309;
+  --color-error: #9b1c1c;
+
+  --radius: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --shadow: 0 1px 2px rgb(23 38 43 / 8%);
+}

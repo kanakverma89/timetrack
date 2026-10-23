@@ -1,0 +1,391 @@
+/* ---- shell -------------------------------------------------------------------------- */
+.app-header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+.app-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--color-accent);
+}
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+.main:focus {
+  outline: none;
+}
+
+/* ---- buttons / forms ---------------------------------------------------------------- */
+.btn {
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+}
+.btn-link {
+  background: none;
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+  padding: 0 var(--space-2);
+}
+.field {
+  margin-bottom: var(--space-4);
+}
+.field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+.required {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.field input {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.form-error {
+  color: var(--color-error);
+  background: var(--status-rejected-bg);
+  border-left: 4px solid var(--color-error);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
+}
+.notice {
+  background: var(--status-submitted-bg);
+  color: var(--status-submitted-fg);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+}
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+.login-card {
+  width: min(100%, 400px);
+}
+
+/* ---- dashboard ---------------------------------------------------------------------- */
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+.week-label {
+  margin: 0;
+  flex: 1 1 auto;
+  text-align: center;
+  min-width: 12ch;
+}
+
+.day-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.day-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+}
+.day-card.has-hours {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.day-card.is-today {
+  outline: 2px dashed var(--color-focus);
+  outline-offset: 2px;
+}
+.day-name {
+  font-weight: 700;
+}
+.day-date {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+.day-hours {
+  margin-top: var(--space-2);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.day-hours abbr {
+  text-decoration: none;
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+.today-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-focus);
+}
+
+.summary {
+  margin-bottom: var(--space-5);
+}
+.summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.summary-head h2 {
+  margin: 0;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.stat {
+  background: var(--color-bg);
+  border-radius: 8px;
+  padding: var(--space-3);
+}
+.stat dt {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+.stat dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 10px;
+  border: 1px solid currentColor;
+}
+.badge-draft {
+  color: var(--status-draft-fg);
+  background: var(--status-draft-bg);
+}
+.badge-submitted {
+  color: var(--status-submitted-fg);
+  background: var(--status-submitted-bg);
+}
+.badge-approved {
+  color: var(--status-approved-fg);
+  background: var(--status-approved-bg);
+}
+.badge-rejected {
+  color: var(--status-rejected-fg);
+  background: var(--status-rejected-bg);
+}
+
+.banner {
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.banner-warning {
+  background: var(--color-warning-bg);
+  border-left: 4px solid var(--color-warning-border);
+}
+.banner-info {
+  background: var(--status-submitted-bg);
+  color: var(--status-submitted-fg);
+}
+
+.entry-group {
+  margin-bottom: var(--space-4);
+}
+.entry-group-title {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.entry-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.entry-main {
+  min-width: 0;
+  flex: 1;
+}
+.entry-description {
+  overflow-wrap: anywhere;
+}
+.entry-task {
+  color: var(--color-text-muted);
+}
+.entry-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.entry-hours {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.empty-state,
+.error-state {
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius);
+  padding: var(--space-5);
+  text-align: center;
+}
+.error-state {
+  border-style: solid;
+  border-color: var(--color-error);
+}
+
+/* ---- loading ------------------------------------------------------------------------ */
+.skeleton-group {
+  display: grid;
+  gap: var(--space-4);
+}
+.skeleton-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.skeleton {
+  background: linear-gradient(90deg, #e3e8ea 25%, #f1f4f5 50%, #e3e8ea 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: var(--radius);
+}
+.skeleton-card {
+  height: 96px;
+}
+.skeleton-block {
+  height: 110px;
+}
+.skeleton-block.tall {
+  height: 180px;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---- responsive --------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .day-grid,
+  .skeleton-row {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
+  .week-label {
+    order: -1;
+    flex-basis: 100%;
+  }
+  .week-nav .btn {
+    flex: 1 1 auto;
+  }
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .entry-card {
+    flex-direction: column;
+  }
+  .entry-side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
