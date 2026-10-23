@@ -1,7 +1,7 @@
 # Implementation plan
 
-Scope of this iteration: **Phase 0 (discovery/planning), Phase 1 (foundation), Phase 2 (Employee
-Dashboard + read APIs)** from `spec.md`. Phases 3–7 are designed for but not implemented.
+Scope so far: **Phases 0–3** from `spec.md` (discovery, foundation, Employee Dashboard read APIs,
+and Day-mode entry create/edit/delete). Phases 4–7 are designed for but not implemented.
 
 ## 1. Repository assessment (Phase 0)
 
@@ -62,11 +62,20 @@ All commands are from the repository root unless noted. Full details live in `RE
       weekly summary, status badge, entries grouped by date, loading/empty/error/retry states
 - [x] Backend unit + API tests, frontend unit tests, Playwright scenarios for Phase 2
 
-### Explicitly not in this iteration
+### Phase 3 — Day-mode time entry
 
-Phase 3 (entry CRUD + Add Entry panel), Phase 4 (week-mode batch), Phase 5 (submission),
+- [x] `POST/PATCH/DELETE /time-entries` with full server-side validation, ownership (404), week
+      locking, optimistic concurrency, audit table (migration `0002`)
+- [x] Add/Edit panel (accessible modal, project combobox, task dependent on project, error summary),
+      discard and delete confirmations, toast, totals refreshed from the API
+- [x] Backend, component and Playwright coverage (see `docs/testing-strategy.md`)
+
+### Explicitly not yet implemented
+
+Phase 4 (week-mode batch), Phase 5 (submission),
 Phase 6 (manager approvals), Phase 7 (administration/hardening). The schema, auth roles, audit
-tables and notification outbox they need already exist, but there are no endpoints or UI for them.
+tables and notification outbox they need already exist, but there are no endpoints or UI for them
+(except the entry audit table, which is now written by Phase 3).
 
 ## 4. Affected areas
 

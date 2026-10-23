@@ -45,3 +45,22 @@ def list_earning_codes(db: Session, *, active: bool | None) -> Sequence[EarningC
     if active is not None:
         stmt = stmt.where(EarningCode.is_active.is_(active))
     return db.scalars(stmt).all()
+
+
+def get_task(db: Session, task_id: uuid.UUID) -> ProjectTask | None:
+    return db.get(ProjectTask, task_id)
+
+
+def get_earning_code(db: Session, earning_code_id: uuid.UUID) -> EarningCode | None:
+    return db.get(EarningCode, earning_code_id)
+
+
+def project_has_active_tasks(db: Session, project_id: uuid.UUID) -> bool:
+    return (
+        db.scalar(
+            select(ProjectTask.id)
+            .where(ProjectTask.project_id == project_id, ProjectTask.is_active.is_(True))
+            .limit(1)
+        )
+        is not None
+    )

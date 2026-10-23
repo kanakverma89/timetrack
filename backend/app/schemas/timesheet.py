@@ -41,6 +41,7 @@ class TimeEntryRead(BaseModel):
     work_date: date
     hours: Decimal
     description: str
+    version: int
     project: ProjectRef
     task: TaskRef | None
     earning_code: EarningCodeRef

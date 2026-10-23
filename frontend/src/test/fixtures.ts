@@ -24,6 +24,7 @@ export function entry(overrides: Partial<TimeEntry> = {}): TimeEntry {
     work_date: '2026-10-19',
     hours: '8.00',
     description: 'Sprint planning and implementation',
+    version: 1,
     project: { id: 'p1', code: 'PRJ-001', name: 'Platform Development' },
     task: { id: 't1', code: 'DEV', name: 'Development' },
     earning_code: { id: 'c1', code: 'REG', name: 'Regular Work', classification: 'CAPPED' },
@@ -83,3 +84,42 @@ export function populatedWeek(start = '2026-10-19'): TimesheetWeek {
     ],
   };
 }
+
+/** Build a week payload from entries, summing in integer cents (test-only helper). */
+export function weekFromEntries(start: string, entries: TimeEntry[]): TimesheetWeek {
+  const cents = (hours: string) => Math.round(Number(hours) * 100);
+  const fmt = (c: number) => `${Math.floor(c / 100)}.${String(c % 100).padStart(2, '0')}`;
+  const base = week(start);
+  const sum = (items: TimeEntry[]) => items.reduce((acc, e) => acc + cents(e.hours), 0);
+  return {
+    ...base,
+    id: entries.length ? 'w1' : null,
+    summary: {
+      total_hours: fmt(sum(entries)),
+      capped_hours: fmt(sum(entries.filter((e) => e.earning_code.classification === 'CAPPED'))),
+      non_capped_hours: fmt(
+        sum(entries.filter((e) => e.earning_code.classification === 'NON_CAPPED')),
+      ),
+      entry_count: entries.length,
+      draft_count: entries.length,
+    },
+    daily_totals: base.daily_totals.map((d) => ({
+      date: d.date,
+      hours: fmt(sum(entries.filter((e) => e.work_date === d.date))),
+    })),
+    entries,
+  };
+}
+
+export const PROJECTS = [
+  { id: 'p1', code: 'PRJ-001', name: 'Platform Development', is_active: true },
+  { id: 'p2', code: 'PRJ-003', name: 'Internal Operations', is_active: true },
+];
+export const TASKS_P1 = [
+  { id: 't1', project_id: 'p1', code: 'DEV', name: 'Development', is_active: true },
+  { id: 't2', project_id: 'p1', code: 'REV', name: 'Code Review', is_active: true },
+];
+export const EARNING_CODES = [
+  { id: 'c1', code: 'REG', name: 'Regular Work', classification: 'CAPPED', is_active: true },
+  { id: 'c2', code: 'OVT', name: 'Overtime', classification: 'NON_CAPPED', is_active: true },
+] as const;

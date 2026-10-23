@@ -36,6 +36,7 @@ export interface TimeEntry {
   work_date: string;
   hours: string;
   description: string;
+  version: number;
   project: ProjectRef;
   task: ProjectRef | null;
   earning_code: EarningCodeRef;
@@ -75,4 +76,37 @@ export interface ApiErrorBody {
     field_errors: Record<string, string>;
     request_id: string;
   };
+}
+
+export interface ProjectOption {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+}
+
+export interface TaskOption {
+  id: string;
+  project_id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+}
+
+export interface EarningCodeOption {
+  id: string;
+  code: string;
+  name: string;
+  classification: Classification;
+  is_active: boolean;
+}
+
+/** Body of POST /time-entries. The employee is never sent; the server uses the session. */
+export interface EntryInput {
+  work_date: string;
+  hours: string;
+  earning_code_id: string;
+  project_id: string;
+  task_id: string | null;
+  description: string;
 }

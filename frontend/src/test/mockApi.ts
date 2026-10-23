@@ -1,9 +1,10 @@
 import { vi } from 'vitest';
 
-type Handler = (
-  url: URL,
-  init: RequestInit,
-) => { status?: number; body?: unknown } | Promise<never>;
+interface Result {
+  status?: number;
+  body?: unknown;
+}
+type Handler = (url: URL, init: RequestInit) => Result | Promise<Result>;
 
 /** Replace global fetch with a router keyed by "METHOD /path" (path relative to /api/v1). */
 export function mockApi(routes: Record<string, Handler>) {

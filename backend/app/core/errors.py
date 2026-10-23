@@ -143,3 +143,13 @@ class ServiceUnavailableError(AppError):
     status_code = 503
     code = "SERVICE_UNAVAILABLE"
     message = "The service is not ready."
+
+
+class WeekNotEditableError(ConflictError):
+    code = "WEEK_NOT_EDITABLE"
+    message = "This week can no longer be changed."
+
+
+class StaleEntryError(ConflictError):
+    code = "STALE_ENTRY"
+    message = "This entry was changed elsewhere. Reload it and try again."

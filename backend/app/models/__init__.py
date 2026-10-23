@@ -4,9 +4,11 @@ from app.models.team import Team, TeamMembership
 from app.models.timesheet import (
     ApprovalAction,
     ApprovalEvent,
+    EntryAction,
     NotificationOutbox,
     OutboxStatus,
     TimeEntry,
+    TimeEntryEvent,
     TimesheetWeek,
     WeekStatus,
 )
@@ -19,6 +21,7 @@ __all__ = [
     "Base",
     "Classification",
     "EarningCode",
+    "EntryAction",
     "NotificationOutbox",
     "OutboxStatus",
     "Project",
@@ -27,6 +30,7 @@ __all__ = [
     "Team",
     "TeamMembership",
     "TimeEntry",
+    "TimeEntryEvent",
     "TimesheetWeek",
     "User",
     "WeekStatus",

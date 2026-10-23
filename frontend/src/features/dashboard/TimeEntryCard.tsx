@@ -1,9 +1,19 @@
 import type { TimeEntry, WeekStatus } from '../../api/types';
+import { longDate } from '../../utils/dates';
 import { formatHours } from '../../utils/hours';
 import { ExpandableText } from './ExpandableText';
 import { TimesheetStatusBadge } from './TimesheetStatusBadge';
 
-export function TimeEntryCard({ entry, status }: { entry: TimeEntry; status: WeekStatus }) {
+interface Props {
+  entry: TimeEntry;
+  status: WeekStatus;
+  /** Provided only while the week is editable. */
+  onEdit?: (entry: TimeEntry) => void;
+  onDelete?: (entry: TimeEntry) => void;
+}
+
+export function TimeEntryCard({ entry, status, onEdit, onDelete }: Props) {
+  const context = `${entry.project.code} on ${longDate(entry.work_date)}`;
   const classification = entry.earning_code.classification === 'CAPPED' ? 'Capped' : 'Non-capped';
   return (
     <li className="entry-card" data-testid="entry-card">
@@ -22,6 +32,30 @@ export function TimeEntryCard({ entry, status }: { entry: TimeEntry; status: Wee
           {formatHours(entry.hours)} <abbr title="hours">h</abbr>
         </span>
         <TimesheetStatusBadge status={status} />
+        {onEdit || onDelete ? (
+          <div className="entry-actions">
+            {onEdit ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-small"
+                aria-label={`Edit entry: ${context}`}
+                onClick={() => onEdit(entry)}
+              >
+                Edit
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-small"
+                aria-label={`Delete entry: ${context}`}
+                onClick={() => onDelete(entry)}
+              >
+                Delete
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </li>
   );

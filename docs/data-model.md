@@ -1,7 +1,7 @@
 # Data model
 
 Source of truth: `backend/app/models/` and migration `backend/alembic/versions/0001_initial_schema.py`
-(`alembic check` confirms they match). All primary keys are UUIDs (`gen_random_uuid()` default);
+(`alembic check` confirms they match; revisions `0001` initial schema, `0002` time-entry audit events). All primary keys are UUIDs (`gen_random_uuid()` default);
 audit timestamps are `timestamptz`.
 
 | Table | Purpose | Notable constraints |
@@ -14,6 +14,7 @@ audit timestamps are `timestamptz`.
 | `earning_codes` | Hour types | unique `code`, `classification` ∈ CAPPED/NON_CAPPED (CHECK) |
 | `timesheet_weeks` | One row per employee per week | unique `(employee_id, week_start_date)`; CHECK `week_end_date = week_start_date + 6`; `status` ∈ DRAFT/SUBMITTED/APPROVED/REJECTED; unique `(id, employee_id)` is the target of a composite FK |
 | `time_entries` | Hours | `hours NUMERIC(5,2)` CHECK `0 < hours ≤ 24`; description CHECK non-blank and ≤ 256; composite FK `(timesheet_week_id, employee_id)` → week (owner must match); composite FK `(project_id, task_id)` → task (task must belong to the project; skipped when `task_id` is NULL); `version` for optimistic concurrency |
+| `time_entry_events` | Append-only audit of entry CREATED/UPDATED/DELETED | `details` JSONB holds ids, date, hours and changed fields only (never the description); `time_entry_id` is deliberately not a foreign key; FKs to week/actor are `RESTRICT` |
 | `approval_events` | Append-only audit of SUBMITTED/APPROVED/REJECTED/WITHDRAWN | FKs are `RESTRICT`; no update/delete paths exist |
 | `notification_outbox` | Pending notifications | JSONB `payload`, `status` PENDING/PROCESSING/SENT/FAILED |
 
@@ -25,5 +26,6 @@ Indexes follow spec §7.11: `timesheet_weeks(employee_id, week_start_date)`,
 Enums are stored as `VARCHAR(20)` with named CHECK constraints (no native PG enum types), which
 keeps migrations simple.
 
-**Not enforced by the database** (service layer, Phase 3): `work_date` lies inside its week, the
-week start matches the configured week-start day, and the per-entry maximum below 24.
+**Not enforced by the database** (enforced in `services/time_entry_service.py`): `work_date` lies
+inside its week (an entry's date can only change within its week), the week start matches the
+configured week-start day, and the configurable per-entry maximum below 24.
