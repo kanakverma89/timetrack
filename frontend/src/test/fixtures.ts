@@ -1,4 +1,11 @@
-import type { Meta, TimeEntry, TimesheetWeek, User } from '../api/types';
+import type {
+  ApprovalDetail,
+  ApprovalListItem,
+  Meta,
+  TimeEntry,
+  TimesheetWeek,
+  User,
+} from '../api/types';
 import { addDays } from '../utils/dates';
 
 export const USER: User = {
@@ -41,6 +48,7 @@ export function week(start = '2026-10-19', overrides: Partial<TimesheetWeek> = {
     submitted_at: null,
     reviewed_at: null,
     review_comment: null,
+    reviewed_by_name: null,
     is_editable: true,
     summary: {
       total_hours: '0.00',
@@ -123,3 +131,45 @@ export const EARNING_CODES = [
   { id: 'c1', code: 'REG', name: 'Regular Work', classification: 'CAPPED', is_active: true },
   { id: 'c2', code: 'OVT', name: 'Overtime', classification: 'NON_CAPPED', is_active: true },
 ] as const;
+
+export const MANAGER: User = {
+  id: '00000000-0000-4000-8000-0000000000aa',
+  email: 'manager@example.test',
+  display_name: 'Morgan Manager',
+  role: 'MANAGER',
+};
+
+export const ALEX = { id: 'u-alex', display_name: 'Alex Employee', email: 'employee@example.test' };
+
+export function approvalItem(overrides: Partial<ApprovalListItem> = {}): ApprovalListItem {
+  return {
+    week_id: 'w-1',
+    employee: ALEX,
+    week_start_date: '2026-10-19',
+    week_end_date: '2026-10-25',
+    status: 'SUBMITTED',
+    submitted_at: '2026-10-24T10:11:00Z',
+    reviewed_at: null,
+    reviewer_name: null,
+    total_hours: '10.50',
+    entry_count: 2,
+    ...overrides,
+  };
+}
+
+export function approvalDetail(overrides: Partial<ApprovalDetail> = {}): ApprovalDetail {
+  const base = populatedWeek('2026-10-19');
+  return {
+    employee: ALEX,
+    week: { ...base, id: 'w-1', status: 'SUBMITTED', is_editable: false },
+    history: [
+      {
+        action: 'SUBMITTED',
+        actor: ALEX,
+        comment: 'Please review',
+        created_at: '2026-10-24T10:11:00Z',
+      },
+    ],
+    ...overrides,
+  };
+}

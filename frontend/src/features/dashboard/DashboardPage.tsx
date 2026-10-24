@@ -6,7 +6,7 @@ import { ErrorState } from '../../components/ErrorState';
 import { LiveRegion } from '../../components/LiveRegion';
 import { LoadingSkeleton } from '../../components/LoadingSkeleton';
 import { Toast } from '../../components/Toast';
-import type { TimeEntry } from '../../api/types';
+import type { TimeEntry, TimesheetWeek } from '../../api/types';
 import { DeleteEntryDialog } from '../time-entries/DeleteEntryDialog';
 import { SubmitWeekDialog } from './SubmitWeekDialog';
 import { TimeEntryFormPanel } from '../time-entries/TimeEntryFormPanel';
@@ -83,7 +83,8 @@ export function DashboardPage() {
         {data.status === 'REJECTED' ? (
           <div className="banner banner-warning" role="status">
             <strong>This week was rejected.</strong>{' '}
-            {data.review_comment ? <>Reason: {data.review_comment}</> : null}
+            {data.review_comment ? <>Reason: {data.review_comment} </> : null}
+            {decisionLine(data, meta.data?.business_timezone)}
           </div>
         ) : null}
         {!data.is_editable ? (
@@ -92,6 +93,12 @@ export function DashboardPage() {
             {data.submitted_at
               ? ` Submitted ${formatTimestamp(data.submitted_at, meta.data?.business_timezone ?? 'UTC')}.`
               : ''}
+            {data.status === 'APPROVED' ? (
+              <> {decisionLine(data, meta.data?.business_timezone)}</>
+            ) : null}
+            {data.status === 'APPROVED' && data.review_comment ? (
+              <> Comment: {data.review_comment}</>
+            ) : null}
           </div>
         ) : null}
         <ul className="day-grid" aria-label="Hours by day">
@@ -210,4 +217,10 @@ export function DashboardPage() {
 /** Today if it falls inside the week, otherwise the first day of the week. */
 function defaultDate(start: string, end: string, today: string | undefined): string {
   return today && today >= start && today <= end ? today : start;
+}
+
+/** "Reviewed by Morgan Manager, Oct 24, 2026, 3:41 PM." (empty until a decision exists). */
+function decisionLine(week: TimesheetWeek, timeZone = 'UTC'): string {
+  if (!week.reviewed_by_name || !week.reviewed_at) return '';
+  return `Reviewed by ${week.reviewed_by_name}, ${formatTimestamp(week.reviewed_at, timeZone)}.`;
 }

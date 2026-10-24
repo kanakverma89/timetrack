@@ -75,6 +75,13 @@ audit data.
 - Plain CSS with design tokens (`styles/tokens.css`); no component library (see D-9).
 - Dev server proxies `/api` to the backend, so the session cookie is same-origin in development.
 
+## Review authorization
+
+`services/review_policy.py` is the single definition of who may review whom (decisions D-51 to D-52):
+the assigned manager or an admin, never oneself, never by team membership. Review routes are mounted
+behind `require_roles(MANAGER, ADMIN)`; the service then applies the policy per week. The SQL used to
+filter lists is checked against the Python policy by a parity test so the two cannot drift.
+
 ## Submission and notifications
 
 `services/submission_service.py` performs the DRAFT/REJECTED → SUBMITTED transition (see decisions
@@ -82,8 +89,7 @@ D-43 to D-48). Business code never calls a delivery provider: it writes a `notif
 inside the same transaction as the change. After the response, a FastAPI background task runs
 `notifications.process_pending`, which claims rows with `FOR UPDATE SKIP LOCKED` and passes them to
 a `NotificationPort` (`app.state.notification_port`; the development adapter writes a structured log
-line with identifiers only). Real providers implement the same one-method port. Phase 6 adds manager
-endpoints guarded by `require_roles(MANAGER, ADMIN)` plus team/manager assignment checks.
+line with identifiers only). Real providers implement the same one-method port. Decisions (Phase 6) use the same outbox for the employee notification.
 
 ## Environments
 

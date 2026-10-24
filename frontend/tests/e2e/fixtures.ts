@@ -1,9 +1,19 @@
 import AxeBuilder from '@axe-core/playwright';
 import { execFileSync } from 'node:child_process';
-import { expect, test as base, type APIRequestContext, type Page } from '@playwright/test';
+import {
+  expect,
+  test as base,
+  type APIRequestContext,
+  type Browser,
+  type Page,
+} from '@playwright/test';
 
 export const EMPLOYEE = 'employee@example.test';
 export const EMPLOYEE2 = 'employee2@example.test';
+export const EMPLOYEE3 = 'employee3@example.test'; // reports to MANAGER2, not MANAGER
+export const MANAGER = 'manager@example.test'; // Morgan: manages EMPLOYEE and EMPLOYEE2
+export const MANAGER2 = 'manager2@example.test'; // Riley: manages EMPLOYEE3 only
+export const ADMIN = 'admin@example.test';
 export const PASSWORD = process.env.SEED_PASSWORD ?? '';
 
 export const API = '/api/v1';
@@ -30,10 +40,37 @@ export async function expectNoAxeViolations(page: Page) {
   expect(summary, 'accessibility violations').toEqual([]);
 }
 
-export const test = base.extend<{ employeePage: Page }>({
+/** A page in its own browser context, signed in as `email` (a genuinely separate session). */
+async function pageFor(browser: Browser, baseURL: string | undefined, email: string) {
+  const context = await browser.newContext({ baseURL });
+  await signInViaApi(context.request, email);
+  return { page: await context.newPage(), close: () => context.close() };
+}
+
+export const test = base.extend<{
+  employeePage: Page;
+  managerPage: Page;
+  manager2Page: Page;
+  adminPage: Page;
+}>({
   employeePage: async ({ page }, use) => {
     await signInViaApi(page.request, EMPLOYEE);
     await use(page);
+  },
+  managerPage: async ({ browser, baseURL }, use) => {
+    const { page, close } = await pageFor(browser, baseURL, MANAGER);
+    await use(page);
+    await close();
+  },
+  manager2Page: async ({ browser, baseURL }, use) => {
+    const { page, close } = await pageFor(browser, baseURL, MANAGER2);
+    await use(page);
+    await close();
+  },
+  adminPage: async ({ browser, baseURL }, use) => {
+    const { page, close } = await pageFor(browser, baseURL, ADMIN);
+    await use(page);
+    await close();
   },
 });
 export { expect };
@@ -79,6 +116,17 @@ export const WEEK_KEYS = [
   'submit-mobile',
   'submit-api',
   'submit-isolation',
+  'appr-flow',
+  'appr-cycle',
+  'appr-scope',
+  'appr-own',
+  'appr-draft',
+  'appr-twice',
+  'appr-a11y',
+  'appr-mobile',
+  'appr-double',
+  'appr-conflict',
+  'appr-keyboard',
 ] as const;
 export type WeekKey = (typeof WEEK_KEYS)[number];
 
@@ -209,4 +257,43 @@ export function setWeekStatus(
     ],
     { cwd: '../backend', env: { ...process.env, DATABASE_URL: e2eDatabaseUrl() }, stdio: 'pipe' },
   );
+}
+
+/** "Jan 4 – Jan 10, 2027" exactly as the app prints a week (both years when it spans New Year). */
+export function rangeLabel(start: string): string {
+  const fmt = (iso: string, withYear: boolean) =>
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'UTC',
+      month: 'short',
+      day: 'numeric',
+      ...(withYear ? { year: 'numeric' } : {}),
+    }).format(new Date(`${iso}T00:00:00Z`));
+  const end = dayOf(start, 6);
+  return start.slice(0, 4) === end.slice(0, 4)
+    ? `${fmt(start, false)} – ${fmt(end, true)}`
+    : `${fmt(start, true)} – ${fmt(end, true)}`;
+}
+
+/** Submit a week through the API as whoever `request` is signed in as. */
+export async function submitViaApi(request: APIRequestContext, week: string, comment?: string) {
+  const response = await request.post(`${API}/timesheets/weeks/${week}/submit`, {
+    headers: CSRF,
+    data: comment ? { comment } : {},
+  });
+  expect(response.status(), await response.text()).toBe(200);
+  return response.json();
+}
+
+/** Create one entry and submit the week; returns the week id (what the approvals API uses). */
+export async function submittedWeek(
+  request: APIRequestContext,
+  week: string,
+  options: { hours?: string; comment?: string; description?: string } = {},
+): Promise<string> {
+  await createEntryViaApi(request, {
+    work_date: week,
+    hours: options.hours ?? '8',
+    description: options.description ?? 'Work for review',
+  });
+  return (await submitViaApi(request, week, options.comment)).id;
 }

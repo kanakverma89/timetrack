@@ -1,8 +1,8 @@
 # Implementation plan
 
-Scope so far: **Phases 0–5** from `spec.md` (discovery, foundation, Employee Dashboard read APIs,
-Day-mode entry create/edit/delete, Week-mode batch entry, and weekly submission). Phases 6–7 are
-designed for but not implemented.
+Scope so far: **Phases 0–6** from `spec.md` (discovery, foundation, Employee Dashboard read APIs,
+Day-mode entry create/edit/delete, Week-mode batch entry, weekly submission, and manager approvals).
+Phase 7 (administration and hardening) is designed for but not implemented.
 
 ## 1. Repository assessment (Phase 0)
 
@@ -86,9 +86,18 @@ All commands are from the repository root unless noted. Full details live in `RE
 - [x] Submit button, confirmation dialog with optional comment, readable errors, read-only afterwards
 - [x] Backend, component and Playwright coverage (spec scenarios 13–14)
 
+### Phase 6 — Manager approvals
+
+- [x] `GET /approvals` (paginated, filtered), `GET /approvals/{id}`, `POST …/approve`, `POST …/reject`
+- [x] Authorization by assignment (+ admin oversight), never self-review, 404/403 policy
+- [x] Required rejection reason, audit event, employee notification (outbox), idempotency, locking
+- [x] Append-only audit tables enforced by the database (migration 0004)
+- [x] Approvals list, review page, decision dialogs; decision details on the employee dashboard
+- [x] Backend, component and Playwright coverage (manager + employee workflows)
+
 ### Explicitly not yet implemented
 
-Phase 6 (manager approvals), Phase 7 (administration/hardening). The schema, auth roles, audit
+Phase 7 (administration/hardening). The schema, auth roles, audit
 tables and notification outbox they need already exist, but there are no endpoints or UI for them
 (except the entry audit table, which is now written by Phase 3).
 

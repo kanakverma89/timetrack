@@ -4,7 +4,10 @@ import { useMemo } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { LoginPage } from '../features/auth/LoginPage';
+import { ApprovalsPage } from '../features/approvals/ApprovalsPage';
+import { ReviewPage } from '../features/approvals/ReviewPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
+import { RequireRole } from '../features/auth/RequireRole';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { createQueryClient } from './queryClient';
 
@@ -24,6 +27,10 @@ export function App({ client }: { client?: QueryClient }) {
           }
         >
           <Route path="/" element={<DashboardPage />} />
+          <Route element={<RequireRole roles={['MANAGER', 'ADMIN']} />}>
+            <Route path="/approvals" element={<ApprovalsPage />} />
+            <Route path="/approvals/:weekId" element={<ReviewPage />} />
+          </Route>
         </Route>
         <Route
           path="*"

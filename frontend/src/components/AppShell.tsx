@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { canReview, usePendingApprovals } from '../hooks/usePendingApprovals';
 import { useLogout, useSession } from '../hooks/useSession';
 import type { ReactNode } from 'react';
 
@@ -6,6 +7,7 @@ export function AppShell({ appName, children }: { appName: string; children: Rea
   const { data: user } = useSession();
   const logout = useLogout();
   const navigate = useNavigate();
+  const pending = usePendingApprovals(user?.role);
 
   return (
     <div className="shell">
@@ -29,6 +31,22 @@ export function AppShell({ appName, children }: { appName: string; children: Rea
             </svg>
             {appName}
           </span>
+          {user ? (
+            <nav className="main-nav" aria-label="Main">
+              <NavLink to="/" end>
+                Timesheet
+              </NavLink>
+              {canReview(user.role) ? (
+                <NavLink
+                  to="/approvals"
+                  // An explicit name: whitespace between inline pieces is not a reliable separator.
+                  aria-label={pending ? `Approvals ${pending} waiting for review` : undefined}
+                >
+                  Approvals {pending ? <span className="count-badge">{pending}</span> : null}
+                </NavLink>
+              ) : null}
+            </nav>
+          ) : null}
           {user ? (
             <div className="user-menu">
               <span className="user-name">

@@ -63,6 +63,7 @@ export interface TimesheetWeek {
   submitted_at: string | null;
   reviewed_at: string | null;
   review_comment: string | null;
+  reviewed_by_name: string | null;
   is_editable: boolean;
   summary: WeekSummary;
   daily_totals: DailyTotal[];
@@ -115,4 +116,45 @@ export interface BatchResult {
   entries: TimeEntry[];
   summary: WeekSummary;
   daily_totals: DailyTotal[];
+}
+
+export interface PersonRef {
+  id: string;
+  display_name: string;
+  email: string;
+}
+
+export interface ApprovalListItem {
+  week_id: string;
+  employee: PersonRef;
+  week_start_date: string;
+  week_end_date: string;
+  status: WeekStatus;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  reviewer_name: string | null;
+  total_hours: string;
+  entry_count: number;
+}
+
+export interface ApprovalList {
+  items: ApprovalListItem[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+export type ApprovalAction = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+
+export interface HistoryItem {
+  action: ApprovalAction;
+  actor: PersonRef;
+  comment: string | null;
+  created_at: string;
+}
+
+export interface ApprovalDetail {
+  employee: PersonRef;
+  week: TimesheetWeek;
+  history: HistoryItem[];
 }

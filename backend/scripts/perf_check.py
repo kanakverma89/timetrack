@@ -59,12 +59,14 @@ def build_dataset(url: str, employees: int, weeks: int, rng: random.Random) -> i
     with Session(engine) as db:
         seed(db, password=PASSWORD, sample_entries=False)  # projects, tasks, codes, 4 users
         pw = hash_password(PASSWORD)
+        manager_id = db.query(User).filter(User.email == "manager@example.test").one().id
         for n in range(employees):
             db.add(
                 User(
                     email=f"perf{n:03d}@example.test",
                     display_name=f"Perf Employee {n}",
                     role=Role.EMPLOYEE,
+                    manager_id=manager_id,
                     password_hash=pw,
                 )
             )
@@ -270,10 +272,47 @@ def main() -> int:
         submit_weeks = future[250:350]
         for monday in submit_weeks:
             client.post("/time-entries", json=body(monday)).raise_for_status()
+        submitted_ids: list[str] = []
+
+        def submit(i: int) -> httpx.Response:
+            response = client.post(f"/timesheets/weeks/{submit_weeks[i]}/submit", json={})
+            if response.status_code == 200:
+                submitted_ids.append(response.json()["id"])
+            return response
+
+        timer.run("POST /timesheets/weeks/{date}/submit", 100, submit, {200})
+
+        # Manager review: a separate session for the assigned manager.
+        boss = httpx.Client(base_url=client.base_url, headers=HEADERS, timeout=30)
+        boss.post(
+            "/auth/login", json={"email": "manager@example.test", "password": PASSWORD}
+        ).raise_for_status()
+        pages = args.weeks * args.employees // 20  # roughly how many pages of 20 exist
         timer.run(
-            "POST /timesheets/weeks/{date}/submit",
+            "GET /approvals (waiting, 100 submitted)",
             100,
-            lambda i: client.post(f"/timesheets/weeks/{submit_weeks[i]}/submit", json={}),
+            lambda _: boss.get("/approvals", params={"status": "SUBMITTED", "page_size": 20}),
+            {200},
+        )
+        timer.run(
+            "GET /approvals (approved, deep paging)",
+            100,
+            lambda i: boss.get(
+                "/approvals",
+                params={"status": "APPROVED", "page": 1 + (i * 7) % max(pages, 1), "page_size": 20},
+            ),
+            {200},
+        )
+        timer.run(
+            "GET /approvals/{id} (review page)",
+            100,
+            lambda i: boss.get(f"/approvals/{submitted_ids[i]}"),
+            {200},
+        )
+        timer.run(
+            "POST /approvals/{id}/approve",
+            100,
+            lambda i: boss.post(f"/approvals/{submitted_ids[i]}/approve", json={"comment": "ok"}),
             {200},
         )
 
