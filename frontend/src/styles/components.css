@@ -619,3 +619,113 @@
     margin-left: auto;
   }
 }
+
+/* ---- week mode ---------------------------------------------------------------------- */
+.mode-toggle {
+  display: flex;
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.mode-toggle legend {
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+.mode-toggle label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  min-height: 44px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+.mode-toggle label.is-selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+.mode-toggle input {
+  accent-color: var(--color-accent);
+  width: 18px;
+  height: 18px;
+}
+
+.week-grid {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-4);
+  min-width: 0;
+}
+.week-grid legend {
+  font-weight: 600;
+  padding: 0 var(--space-2);
+}
+.week-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.week-day {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(0, 1.2fr);
+  align-items: start;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.week-day:last-child {
+  border-bottom: 0;
+}
+.week-day.is-off .week-day-toggle {
+  color: var(--color-text-muted);
+}
+.week-day-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  cursor: pointer;
+}
+.week-day-toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-accent);
+}
+.week-day-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.week-day-input input {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.week-day-input input:disabled {
+  background: var(--color-bg);
+}
+.week-day > .field-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.week-total {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: 2px solid var(--color-border);
+  font-size: 1.1rem;
+  text-align: right;
+}

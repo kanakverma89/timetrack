@@ -4,8 +4,8 @@ import uuid
 
 from fastapi import APIRouter, Response
 
-from app.schemas.time_entry import TimeEntryCreate, TimeEntryUpdate
-from app.schemas.timesheet import TimeEntryRead
+from app.schemas.time_entry import TimeEntryBatchCreate, TimeEntryCreate, TimeEntryUpdate
+from app.schemas.timesheet import TimeEntryBatchRead, TimeEntryRead
 from app.security.dependencies import CurrentUser, DbDep, SettingsDep
 from app.services import time_entry_service
 
@@ -18,6 +18,18 @@ def create_time_entry(
 ) -> TimeEntryRead:
     entry = time_entry_service.create_entry(db, user, body, settings)
     return TimeEntryRead.model_validate(entry)
+
+
+@router.post("/batch", status_code=201, response_model=TimeEntryBatchRead)
+def create_time_entries_batch(
+    body: TimeEntryBatchCreate, user: CurrentUser, db: DbDep, settings: SettingsDep
+) -> TimeEntryBatchRead:
+    entries, week = time_entry_service.create_entries_batch(db, user, body, settings)
+    return TimeEntryBatchRead(
+        entries=[TimeEntryRead.model_validate(e) for e in entries],
+        summary=week.summary,
+        daily_totals=week.daily_totals,
+    )
 
 
 @router.patch("/{entry_id}", response_model=TimeEntryRead)

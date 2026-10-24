@@ -110,3 +110,9 @@ export interface EntryInput {
   task_id: string | null;
   description: string;
 }
+
+export interface BatchResult {
+  entries: TimeEntry[];
+  summary: WeekSummary;
+  daily_totals: DailyTotal[];
+}

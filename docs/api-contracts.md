@@ -1,4 +1,4 @@
-# API contracts (implemented in Phases 1–3)
+# API contracts (implemented in Phases 1–4)
 
 Base path `/api/v1`. JSON. Dates `YYYY-MM-DD`. Hours are decimal **strings** with two places.
 Interactive docs: `/api/v1/docs` when enabled (development/test by default). Unsafe methods
@@ -41,6 +41,7 @@ The `X-Request-ID` response header equals `error.request_id`; a valid inbound `X
 | `GET /earning-codes?active=true` | session | `{items:[{id, code, name, classification, is_active}]}` |
 | `GET /timesheets/weeks/{date}` | session | The caller's week containing `date` (normalised to the week start) |
 | `POST /time-entries` | session + CSRF | Create an entry (201) |
+| `POST /time-entries/batch` | session + CSRF | Week mode: create several entries for one week atomically (201) |
 | `PATCH /time-entries/{id}` | session + CSRF | Partial update (200) |
 | `DELETE /time-entries/{id}` | session + CSRF | Delete (204) |
 
@@ -107,7 +108,38 @@ An empty body is `422` (`field_errors.request`).
 `DELETE /time-entries/{id}` returns `204`; the audit event records the deleted entry's ids, date
 and hours. Each successful write appends a row to `time_entry_events` in the same transaction.
 
+## Batch creation (Phase 4, Week mode)
+
+`POST /time-entries/batch`
+
+```json
+{ "entries": [
+  { "work_date": "2026-10-19", "hours": "8",   "earning_code_id": "uuid", "project_id": "uuid", "task_id": "uuid", "description": "Sprint work" },
+  { "work_date": "2026-10-20", "hours": "7.5", "earning_code_id": "uuid", "project_id": "uuid", "task_id": "uuid", "description": "Sprint work" }
+] }
+```
+
+- **Atomic:** all items are validated first; nothing is written unless every item is valid, and the
+  inserts (plus one audit event per entry) share one transaction. A failure at any point leaves no
+  entries, no audit rows and no new week row.
+- 1–31 items; every date in the **same week** (the first valid item defines it); each date **once**;
+  unknown fields (including `employee_id`) are rejected at both levels.
+- Each item obeys the same rules as `POST /time-entries` (active references, task rules, hour and
+  description limits). The week must be `DRAFT` or `REJECTED`, otherwise `409 WEEK_NOT_EDITABLE`.
+- It only adds entries: existing entries for the same dates are left untouched.
+- Errors are addressed to the item: `422` with `field_errors` such as
+  `{"entries.2.hours": "Hours cannot exceed 24 per entry.", "entries.3.work_date": "Each date can only appear once in a batch."}`.
+  Several items can fail at once and all are reported.
+
+`201` response:
+
+```json
+{ "entries": [ /* created entries, in request order, each with its own id */ ],
+  "summary": { "total_hours": "15.50", "capped_hours": "15.50", "non_capped_hours": "0.00",
+               "entry_count": 2, "draft_count": 2 },
+  "daily_totals": [ { "date": "2026-10-19", "hours": "8.00" } ] }
+```
+
 ## Not yet implemented
 
-`POST /time-entries/batch` (Week mode), `POST /timesheets/weeks/{date}/submit`, manager
-`/approvals/*` (spec §8.5–8.7).
+`POST /timesheets/weeks/{date}/submit`, manager `/approvals/*` (spec §8.6–8.7).

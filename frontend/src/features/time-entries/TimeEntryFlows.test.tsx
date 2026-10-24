@@ -53,6 +53,30 @@ function startServer(initial: TimeEntry[] = [], overrides: Parameters<typeof moc
       state.entries.push(created);
       return { status: 201, body: created };
     },
+    'POST /time-entries/batch': (_url, init) => {
+      const body = JSON.parse(String(init.body)) as {
+        entries: Array<Record<string, string | null>>;
+      };
+      (state.bodies.BATCH ??= []).push(body);
+      const code =
+        EARNING_CODES.find((c) => c.id === body.entries[0]?.earning_code_id) ?? EARNING_CODES[0];
+      const created = body.entries.map((item, index) =>
+        entry({
+          id: `batch-${state.entries.length + index + 1}`,
+          work_date: String(item.work_date),
+          hours: Number(item.hours).toFixed(2),
+          description: String(item.description),
+          task: TASKS_P1.find((t) => t.id === item.task_id) ?? null,
+          earning_code: { ...code },
+        }),
+      );
+      state.entries.push(...created);
+      const view = weekFromEntries(START, state.entries);
+      return {
+        status: 201,
+        body: { entries: created, summary: view.summary, daily_totals: view.daily_totals },
+      };
+    },
     ...overrides,
   });
   return { ...api, state };
@@ -523,5 +547,315 @@ describe('read-only weeks', () => {
     renderApp(`/?week=${START}`);
     expect(await screen.findByRole('button', { name: 'Add entry' })).toBeInTheDocument();
     expect(week(START).is_editable).toBe(true);
+  });
+});
+
+// ------------------------------------------------------------------------- Week mode
+
+const dayHours = (panel: HTMLElement, label: string) =>
+  within(panel).getByLabelText(`Hours for ${label}`);
+const dayCheckbox = (panel: HTMLElement, name: RegExp) =>
+  within(panel).getByRole('checkbox', { name });
+
+async function openWeekMode(user: ReturnType<typeof userEvent.setup>) {
+  const panel = await openAddPanel(user);
+  await user.click(within(panel).getByRole('radio', { name: /^Week/ }));
+  return panel;
+}
+
+async function fillSharedFields(user: ReturnType<typeof userEvent.setup>, panel: HTMLElement) {
+  const p = within(panel);
+  await user.selectOptions(await p.findByLabelText(/^Earning code/), 'c1');
+  await user.click(p.getByRole('combobox', { name: /^Project/ }));
+  await user.click(await p.findByRole('option', { name: /PRJ-001/ }));
+  await user.selectOptions(await p.findByLabelText(/^Task/), 't1');
+  await user.type(p.getByLabelText(/^Work description/), 'Sprint work');
+}
+
+describe('Week mode', () => {
+  it('offers a Day/Week choice only when adding, defaulting to Day', async () => {
+    const user = userEvent.setup();
+    startServer(existing());
+    renderApp(`/?week=${START}`);
+    const panel = await openAddPanel(user);
+    const group = within(panel).getByRole('group', { name: 'Entry mode' });
+    expect(within(group).getByRole('radio', { name: /^Day/ })).toBeChecked();
+    expect(within(panel).getByLabelText(/^Date/)).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Cancel' }));
+
+    await user.click(await screen.findByRole('button', { name: /Edit entry: PRJ-001/ }));
+    const editing = await screen.findByRole('dialog', { name: 'Edit time entry' });
+    expect(within(editing).queryByRole('group', { name: 'Entry mode' })).not.toBeInTheDocument();
+  });
+
+  it('shows one row per day of the selected week, weekdays on and weekend off', async () => {
+    const user = userEvent.setup();
+    startServer();
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    const p = within(panel);
+    expect(p.getAllByRole('checkbox')).toHaveLength(7);
+    expect(dayCheckbox(panel, /Mon\s+Oct 19/)).toBeChecked();
+    expect(dayCheckbox(panel, /Fri\s+Oct 23/)).toBeChecked();
+    expect(dayCheckbox(panel, /Sat\s+Oct 24/)).not.toBeChecked();
+    expect(dayCheckbox(panel, /Sun\s+Oct 25/)).not.toBeChecked();
+    expect(dayHours(panel, 'Saturday, October 24')).toBeDisabled();
+    // Day-only fields are gone; the shared ones remain.
+    expect(p.queryByLabelText(/^Date/)).not.toBeInTheDocument();
+    expect(p.queryByLabelText(/^Hours \(/)).not.toBeInTheDocument();
+    expect(p.getByLabelText(/^Work description/)).toBeInTheDocument();
+    expect(p.getByRole('button', { name: 'Save entries' })).toBeInTheDocument();
+    expect(p.getByTestId('week-total')).toHaveTextContent('0.00');
+  });
+
+  it('keeps a live exact total of the enabled days', async () => {
+    const user = userEvent.setup();
+    startServer();
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    const total = within(panel).getByTestId('week-total');
+    await user.type(dayHours(panel, 'Monday, October 19'), '0.1');
+    await user.type(dayHours(panel, 'Tuesday, October 20'), '0.2');
+    expect(total).toHaveTextContent('0.30'); // not 0.30000000000000004
+    await user.type(dayHours(panel, 'Wednesday, October 21'), '7.5');
+    expect(total).toHaveTextContent('7.80');
+    await user.click(dayCheckbox(panel, /Wed\s+Oct 21/));
+    expect(total).toHaveTextContent('0.30');
+    expect(total.closest('[aria-live="polite"]')).not.toBeNull();
+  });
+
+  it('saves only enabled days with positive hours, in one request, and refreshes the week', async () => {
+    const user = userEvent.setup();
+    const { state } = startServer();
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    await fillSharedFields(user, panel);
+    await user.type(dayHours(panel, 'Monday, October 19'), '8');
+    await user.type(dayHours(panel, 'Tuesday, October 20'), '7.5');
+    await user.type(dayHours(panel, 'Wednesday, October 21'), '0'); // zero: records nothing
+    // Thursday stays blank; Friday is switched off even though it has hours.
+    await user.type(dayHours(panel, 'Friday, October 23'), '5');
+    await user.click(dayCheckbox(panel, /Fri\s+Oct 23/));
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(state.bodies.BATCH).toHaveLength(1);
+    const body = state.bodies.BATCH![0] as { entries: Array<Record<string, unknown>> };
+    expect(body.entries).toEqual([
+      expect.objectContaining({
+        work_date: '2026-10-19',
+        hours: '8',
+        earning_code_id: 'c1',
+        project_id: 'p1',
+        task_id: 't1',
+        description: 'Sprint work',
+      }),
+      expect.objectContaining({ work_date: '2026-10-20', hours: '7.5' }),
+    ]);
+    expect(state.bodies.POST).toBeUndefined(); // not the single-entry endpoint
+    expect(await screen.findByText('2 entries saved (15.50 hours).')).toBeInTheDocument();
+    expect(await screen.findByTestId('total-hours')).toHaveTextContent('15.50');
+    expect(screen.getAllByTestId('entry-card')).toHaveLength(2);
+  });
+
+  it('requires at least one day with hours and sends nothing otherwise', async () => {
+    const user = userEvent.setup();
+    const { state } = startServer();
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    await fillSharedFields(user, panel);
+    await user.type(dayHours(panel, 'Monday, October 19'), '0');
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+    const alert = await within(panel).findByRole('alert');
+    expect(alert).toHaveTextContent('Enter hours for at least one day.');
+    expect(state.bodies.BATCH).toBeUndefined();
+    expect(screen.getByRole('dialog', { name: 'Add time entry' })).toBeInTheDocument();
+  });
+
+  it('shows per-day errors linked to their inputs and sends nothing until fixed', async () => {
+    const user = userEvent.setup();
+    const { state } = startServer();
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    await fillSharedFields(user, panel);
+    await user.type(dayHours(panel, 'Monday, October 19'), '8');
+    await user.type(dayHours(panel, 'Wednesday, October 21'), '25');
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+
+    const summary = await within(panel).findByRole('alert');
+    expect(summary).toHaveTextContent('Please fix 1 field before saving');
+    const wed = dayHours(panel, 'Wednesday, October 21');
+    expect(wed).toHaveAttribute('aria-invalid', 'true');
+    const describedBy = (wed.getAttribute('aria-describedby') ?? '').split(' ');
+    expect(
+      describedBy.some((id) =>
+        document.getElementById(id)?.textContent?.includes('cannot exceed 24'),
+      ),
+    ).toBe(true);
+    expect(dayHours(panel, 'Monday, October 19')).not.toHaveAttribute('aria-invalid');
+    expect(state.bodies.BATCH).toBeUndefined();
+
+    await waitFor(() => expect(summary).toHaveFocus()); // focus moves to the summary first
+    await user.click(within(summary).getByRole('link', { name: /Wednesday, October 21/ }));
+    expect(wed).toHaveFocus();
+    await user.clear(wed);
+    await user.type(wed, '4');
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+    await waitFor(() => expect(state.bodies.BATCH).toHaveLength(1));
+  });
+
+  it('maps a server error back to the right day, even when earlier days were skipped', async () => {
+    const user = userEvent.setup();
+    startServer([], {
+      'POST /time-entries/batch': () => ({
+        status: 422,
+        body: {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'The request contains invalid fields.',
+            // index 1 of the request is Wednesday, because Monday was left blank
+            field_errors: { 'entries.1.hours': 'Hours cannot exceed 12 per entry.' },
+            request_id: 'r2',
+          },
+        },
+      }),
+    });
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    await fillSharedFields(user, panel);
+    await user.type(dayHours(panel, 'Tuesday, October 20'), '8');
+    await user.type(dayHours(panel, 'Wednesday, October 21'), '9');
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+
+    expect(await within(panel).findByText('Hours cannot exceed 12 per entry.')).toBeInTheDocument();
+    expect(dayHours(panel, 'Wednesday, October 21')).toHaveAttribute('aria-invalid', 'true');
+    expect(dayHours(panel, 'Tuesday, October 20')).not.toHaveAttribute('aria-invalid');
+    // Everything the user typed is still there, and nothing was saved.
+    expect(dayHours(panel, 'Tuesday, October 20')).toHaveValue('8');
+    expect(dayHours(panel, 'Wednesday, October 21')).toHaveValue('9');
+    expect(within(panel).getByLabelText(/^Work description/)).toHaveValue('Sprint work');
+    expect(screen.getByRole('dialog', { name: 'Add time entry' })).toBeInTheDocument();
+    expect(screen.queryByText(/entries saved/)).not.toBeInTheDocument();
+  });
+
+  it('puts shared-field server errors on the shared field, once', async () => {
+    const user = userEvent.setup();
+    startServer([], {
+      'POST /time-entries/batch': () => ({
+        status: 422,
+        body: {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'The request contains invalid fields.',
+            field_errors: {
+              'entries.0.project_id': 'Select an active project.',
+              'entries.1.project_id': 'Select an active project.',
+            },
+            request_id: 'r3',
+          },
+        },
+      }),
+    });
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    await fillSharedFields(user, panel);
+    await user.type(dayHours(panel, 'Monday, October 19'), '1');
+    await user.type(dayHours(panel, 'Tuesday, October 20'), '1');
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+    const summary = await within(panel).findByRole('alert');
+    // Reported on the Project field once (not once per day) ...
+    expect(within(panel).getAllByText('Select an active project.')).toHaveLength(1);
+    expect(summary).toHaveTextContent('Please fix 1 field before saving');
+    // ... and listed once in the summary, linking to that field.
+    const links = within(summary).getAllByRole('link');
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveTextContent('Project: Select an active project.');
+  });
+
+  it('does not lose anything typed when switching between Day and Week mode', async () => {
+    const user = userEvent.setup();
+    startServer();
+    renderApp(`/?week=${START}`);
+    const panel = await openAddPanel(user);
+    const p = within(panel);
+    await user.type(p.getByLabelText(/^Hours/), '5');
+    await user.type(p.getByLabelText(/^Work description/), 'Shared text');
+
+    await user.click(p.getByRole('radio', { name: /^Week/ }));
+    expect(p.getByLabelText(/^Work description/)).toHaveValue('Shared text');
+    await user.type(dayHours(panel, 'Monday, October 19'), '3');
+    await user.click(dayCheckbox(panel, /Tue\s+Oct 20/));
+
+    await user.click(p.getByRole('radio', { name: /^Day/ }));
+    expect(p.getByLabelText(/^Hours/)).toHaveValue('5');
+    expect(p.getByLabelText(/^Work description/)).toHaveValue('Shared text');
+
+    await user.click(p.getByRole('radio', { name: /^Week/ }));
+    expect(dayHours(panel, 'Monday, October 19')).toHaveValue('3');
+    expect(dayCheckbox(panel, /Tue\s+Oct 20/)).not.toBeChecked();
+  });
+
+  it('shows what is already logged per day and never submits it again', async () => {
+    const user = userEvent.setup();
+    const { state } = startServer(existing());
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    const monday = dayHours(panel, 'Monday, October 19');
+    expect(monday).toHaveAccessibleDescription('Already logged: 8.00 h');
+    expect(dayHours(panel, 'Tuesday, October 20')).toHaveAccessibleDescription(
+      'Already logged: 2.50 h',
+    );
+    expect(dayHours(panel, 'Wednesday, October 21')).not.toHaveAccessibleDescription(/Already/);
+
+    await fillSharedFields(user, panel);
+    await user.type(dayHours(panel, 'Wednesday, October 21'), '4');
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+    await waitFor(() => expect(state.bodies.BATCH).toHaveLength(1));
+    expect((state.bodies.BATCH![0] as { entries: unknown[] }).entries).toHaveLength(1);
+  });
+
+  it('treats switching mode alone as unchanged, but typing in the grid as unsaved work', async () => {
+    const user = userEvent.setup();
+    startServer();
+    renderApp(`/?week=${START}`);
+    let panel = await openWeekMode(user);
+    await user.click(within(panel).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+
+    panel = await openWeekMode(user);
+    await user.type(dayHours(panel, 'Monday, October 19'), '2');
+    await user.click(within(panel).getByRole('button', { name: 'Cancel' }));
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Discard changes?' }),
+    ).toBeInTheDocument();
+  });
+
+  it('cannot be double-submitted while the request is in flight', async () => {
+    const user = userEvent.setup();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let posts = 0;
+    startServer([], {
+      'POST /time-entries/batch': async () => {
+        posts += 1;
+        await gate;
+        return {
+          status: 201,
+          body: { entries: [], summary: week(START).summary, daily_totals: [] },
+        };
+      },
+    });
+    renderApp(`/?week=${START}`);
+    const panel = await openWeekMode(user);
+    await fillSharedFields(user, panel);
+    await user.type(dayHours(panel, 'Monday, October 19'), '1');
+    await user.click(within(panel).getByRole('button', { name: 'Save entries' }));
+    const saving = await within(panel).findByRole('button', { name: 'Saving…' });
+    expect(saving).toBeDisabled();
+    await user.click(saving);
+    release();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(posts).toBe(1);
   });
 });
