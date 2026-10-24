@@ -22,7 +22,7 @@ Boundaries: browser ↔ TLS terminator (yours) ↔ nginx ↔ API ↔ PostgreSQL.
 `backend/app/tests/test_security_regression.py` holds a matrix of every route and the roles allowed to
 call it. It fails if a route exists that is not listed (so a new endpoint cannot ship without someone
 choosing its rule), if a listed route no longer exists, or if any of *anonymous / employee / manager /
-admin* gets a different answer than the matrix says (62 tests). It also asserts:
+admin* gets a different answer than the matrix says (63 tests). It also asserts:
 
 - every state-changing route refuses a request **without** the `X-Requested-With: timetrack` header and
   one carrying a **foreign `Origin`**, and lets a correct request through to authentication;
@@ -33,7 +33,7 @@ admin* gets a different answer than the matrix says (62 tests). It also asserts:
   origin or `*`; error bodies contain no stack trace, SQL, driver name or file path.
 
 Object-level rules (an employee sees only their own weeks; a manager reviews only assigned reports and
-never themself; team membership grants nothing) are in `test_approvals_authorization.py` and
+never themself; team membership grants nothing) are in `test_api_approvals.py` and
 `test_review_policy.py`, with a parity test tying the SQL scope to the pure policy function.
 
 Mutation evidence: removing the manager/admin guard on the reports router made the matrix fail for the
@@ -46,7 +46,7 @@ employee on `/reports/hours`; exempting one path from the CSRF check failed four
 | S-1 | Two administrators demoting/deactivating each other concurrently could both pass the "another admin remains" check and leave nobody in charge | High | **Fixed**: all active admin rows are locked (`FOR UPDATE`) before the check; a two-thread test reproduces the race |
 | S-2 | The append-only admin audit trail stored emails and old/new display names, which anonymisation could not remove from a table that cannot be edited | Medium | **Fixed**: user rows in the audit hold the id only and record *that* a name changed, not its value; the audit view resolves the person's *current* name, so an anonymised person reads "Former employee" |
 | S-3 | `FailureLimiter` (login throttle) grew without bound under a flood of distinct keys (memory exhaustion by an unauthenticated caller) | Medium | **Fixed**: key count capped; expired keys are evicted first, then the oldest. Residual risk: under a deliberate flood an attacker can evict *other* people's counters and so reset their throttle (accepted, below) |
-| S-4 | A user with a temporary password could otherwise use the whole API before changing it | Medium | **Fixed**: every route except `me`, `change-password` and `logout` answers 403 until the password is changed (tested for each route in the matrix) |
+| S-4 | A user with a temporary password could otherwise use the whole API before changing it | Medium | **Fixed**: every route except `me`, `change-password` and `logout` answers 403 until the password is changed (tested for all three roles on every route in the matrix other than the public and exempt ones; widening the exemption list by one path made it fail) |
 | S-5 | Changing the password with a wrong *current* password returning 401 would look like an expired session and sign the user out | Low | **Fixed**: it is a 422 field error; other sessions are revoked on success |
 | S-6 | CSV export of free text allows spreadsheet formula injection (`=cmd|…`) | Medium | **Fixed**: cells starting with `= + - @ TAB CR` are prefixed with a quote; the export contains no descriptions in any case |
 | S-7 | No `Content-Security-Policy` / `Permissions-Policy` / HSTS | Low | **Fixed**: API sends `default-src 'none'`; nginx sends a same-origin CSP for the app; HSTS when cookies are `Secure`. Verified on the running containers (one CSP header, no duplicates) |

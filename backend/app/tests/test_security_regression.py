@@ -271,3 +271,39 @@ def test_cors_never_reflects_arbitrary_origins_or_allows_wildcards(client: TestC
     )
     assert good.headers["access-control-allow-origin"] == TEST_ORIGIN
     assert good.headers["access-control-allow-origin"] != "*"
+
+
+# ------------------------------------------------------------- temporary-password lockdown
+
+
+PUBLIC_OR_EXEMPT = {
+    ("GET", "/health"),
+    ("GET", "/health/ready"),
+    ("POST", "/auth/login"),
+    ("POST", "/auth/logout"),
+    ("GET", "/auth/me"),
+    ("POST", "/auth/change-password"),
+}
+
+
+def test_a_pending_password_change_locks_every_other_route_for_every_role(
+    app_under_test: Any, db: Any, login_as: Any
+) -> None:
+    clients = {}
+    for role in (Role.EMPLOYEE, Role.MANAGER, Role.ADMIN):
+        user = make_user(db, f"locked-{role.value.lower()}@example.test", role)
+        user.must_change_password = True
+        db.commit()
+        clients[role] = login_as(user.email)
+
+    locked = [r for r in routes(app_under_test) if r not in PUBLIC_OR_EXEMPT]
+    assert len(locked) > 30  # the matrix is not accidentally empty
+    for role, who in clients.items():
+        for method, template in locked:
+            response = who.request(method, f"{API}{fill(template)}", json={})
+            assert response.status_code == 403, (role, method, template, response.status_code)
+            assert response.json()["error"]["code"] == "PASSWORD_CHANGE_REQUIRED", (
+                role,
+                method,
+                template,
+            )
