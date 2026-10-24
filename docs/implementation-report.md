@@ -40,7 +40,7 @@ Everything marked "ran" was executed; anything not listed was not run.
 | `npm test` (Vitest) | **134 passed** in 9 files |
 | `npm run build` | succeeds |
 | `npx playwright test` — Chromium, Firefox, WebKit, local | **171 passed, 6 skipped**, identical in two consecutive full runs (skips: 3 optional screenshot captures, 3 WebKit keyboard-Tab tests) |
-| GitHub Actions on the Phase 3 merge (`main`) and its branch | **backend, frontend and e2e jobs all succeeded** on Ubuntu with Python 3.12 / Node 22 (run before the Phase 4 changes were pushed) |
+| GitHub Actions on `main` (Phase 3 merge) and on the Phase 4 branch | **backend, frontend and e2e jobs all succeeded** in both runs, on Ubuntu with Python 3.12 / Node 22 (e2e = the full Playwright suite on all three browsers) |
 | Manual | desktop/mobile screenshots of the dashboard, the Day panel (errors) and the Week grid (errors, mobile) inspected |
 
 Mutation checks (change the code, confirm a test fails): removing the owner filter; per-row commits
@@ -63,8 +63,10 @@ task id hidden by a `<select>`; a redundant double-submit guard).
 
 ## Not verified / known limitations
 
-- Phase 4 changes have been run locally only until pushed; the earlier CI run predates them.
-- Node 20 (the declared minimum) is untested; Python 3.12 and Node 22 passed in CI for Phase 3.
+- Node 20 (the declared minimum) is untested; Python 3.12 and Node 22 pass in CI.
+- CI reports two non-blocking warnings: the pinned actions (`checkout@v4`, `setup-node@v4`,
+  `setup-python@v5`) target the deprecated Node 20 runtime, and `ubuntu-latest` is migrating to
+  Ubuntu 26. The workflow should be updated to newer action versions.
 - No Dockerfiles for backend/frontend; Compose provides only PostgreSQL.
 - Not measured: performance targets (spec §4.2), real mobile devices, screen-reader behaviour
   (axe-core + keyboard tests only), browsers other than the three Playwright engines.
