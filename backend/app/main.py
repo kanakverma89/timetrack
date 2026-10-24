@@ -10,9 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
+from app.core.db import get_sessionmaker
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, logger, set_request_id
 from app.core.ratelimit import FailureLimiter
+from app.services.notifications import LoggingNotificationAdapter, NotificationPort
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
@@ -24,7 +26,9 @@ SECURITY_HEADERS = {
 }
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, notification_port: NotificationPort | None = None
+) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
@@ -36,6 +40,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=f"{settings.api_v1_prefix}/openapi.json" if settings.docs_enabled else None,
     )
     app.state.settings = settings
+    # Replaceable seams: how background work gets a database session, and where notifications go.
+    app.state.session_factory = lambda: get_sessionmaker()()
+    app.state.notification_port = notification_port or LoggingNotificationAdapter()
     app.state.login_limiter = FailureLimiter(
         settings.login_max_attempts, settings.login_window_seconds
     )

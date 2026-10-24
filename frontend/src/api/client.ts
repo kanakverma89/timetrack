@@ -30,9 +30,14 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
 
 export async function apiFetch<T>(
   path: string,
-  options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+  options: {
+    method?: string;
+    body?: unknown;
+    signal?: AbortSignal;
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<T> {
-  const { method = 'GET', body, signal } = options;
+  const { method = 'GET', body, signal, headers = {} } = options;
   let response: Response;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
@@ -43,6 +48,7 @@ export async function apiFetch<T>(
         Accept: 'application/json',
         // Required by the backend's CSRF guard on unsafe methods.
         'X-Requested-With': 'timetrack',
+        ...headers,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),

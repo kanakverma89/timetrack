@@ -1,7 +1,7 @@
 # Data model
 
 Source of truth: `backend/app/models/` and migration `backend/alembic/versions/0001_initial_schema.py`
-(`alembic check` confirms they match; revisions `0001` initial schema, `0002` time-entry audit events). All primary keys are UUIDs (`gen_random_uuid()` default);
+(`alembic check` confirms they match; revisions `0001` initial schema, `0002` time-entry audit events, `0003` idempotency keys). All primary keys are UUIDs (`gen_random_uuid()` default);
 audit timestamps are `timestamptz`.
 
 | Table | Purpose | Notable constraints |
@@ -15,8 +15,9 @@ audit timestamps are `timestamptz`.
 | `timesheet_weeks` | One row per employee per week | unique `(employee_id, week_start_date)`; CHECK `week_end_date = week_start_date + 6`; `status` ∈ DRAFT/SUBMITTED/APPROVED/REJECTED; unique `(id, employee_id)` is the target of a composite FK |
 | `time_entries` | Hours | `hours NUMERIC(5,2)` CHECK `0 < hours ≤ 24`; description CHECK non-blank and ≤ 256; composite FK `(timesheet_week_id, employee_id)` → week (owner must match); composite FK `(project_id, task_id)` → task (task must belong to the project; skipped when `task_id` is NULL); `version` for optimistic concurrency |
 | `time_entry_events` | Append-only audit of entry CREATED/UPDATED/DELETED | `details` JSONB holds ids, date, hours and changed fields only (never the description); `time_entry_id` is deliberately not a foreign key; FKs to week/actor are `RESTRICT` |
-| `approval_events` | Append-only audit of SUBMITTED/APPROVED/REJECTED/WITHDRAWN | FKs are `RESTRICT`; no update/delete paths exist |
-| `notification_outbox` | Pending notifications | JSONB `payload`, `status` PENDING/PROCESSING/SENT/FAILED |
+| `approval_events` | Append-only audit of SUBMITTED/APPROVED/REJECTED/WITHDRAWN (a SUBMITTED row is written on every submission, with the optional comment) | FKs are `RESTRICT`; no update/delete paths exist |
+| `notification_outbox` | Pending notifications; one `TIMESHEET_SUBMITTED` row per submission | JSONB `payload` (ids and totals only), `status` PENDING/PROCESSING/SENT/FAILED, `attempt_count`, `last_error` |
+| `idempotency_keys` | Client keys already honoured (submission) | unique `(user_id, scope, key)`; `aggregate_id` = the week it acted on; cascades with the user |
 
 Indexes follow spec §7.11: `timesheet_weeks(employee_id, week_start_date)`,
 `timesheet_weeks(status, week_start_date)`, `time_entries(timesheet_week_id, work_date)`,

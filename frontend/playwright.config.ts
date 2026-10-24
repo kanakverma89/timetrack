@@ -56,6 +56,9 @@ export default defineConfig({
         APP_ENV: 'test',
         LOG_LEVEL: 'WARNING',
         LOGIN_MAX_ATTEMPTS: '1000', // parallel browsers sign in repeatedly from one address
+        // Weekly policy so submission-time rules can be exercised end to end.
+        MAX_HOURS_PER_DAY: '16',
+        MAX_HOURS_PER_WEEK: '60',
         SEED_PASSWORD: process.env.SEED_PASSWORD,
       },
     },

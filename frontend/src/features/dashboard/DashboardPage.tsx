@@ -8,8 +8,9 @@ import { LoadingSkeleton } from '../../components/LoadingSkeleton';
 import { Toast } from '../../components/Toast';
 import type { TimeEntry } from '../../api/types';
 import { DeleteEntryDialog } from '../time-entries/DeleteEntryDialog';
+import { SubmitWeekDialog } from './SubmitWeekDialog';
 import { TimeEntryFormPanel } from '../time-entries/TimeEntryFormPanel';
-import { addDays, formatWeekRange, isValidIsoDate } from '../../utils/dates';
+import { addDays, formatTimestamp, formatWeekRange, isValidIsoDate } from '../../utils/dates';
 import { formatHours } from '../../utils/hours';
 import { DailyHoursCard } from './DailyHoursCard';
 import { TimeEntryList } from './TimeEntryList';
@@ -44,6 +45,7 @@ export function DashboardPage() {
 
   const [panel, setPanel] = useState<{ entry: TimeEntry | null } | null>(null);
   const [deleting, setDeleting] = useState<TimeEntry | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState('');
   const dismissToast = useCallback(() => setToast(''), []);
 
@@ -87,6 +89,9 @@ export function DashboardPage() {
         {!data.is_editable ? (
           <div className="banner banner-info" role="status">
             This week is {data.status.toLowerCase()} and read-only.
+            {data.submitted_at
+              ? ` Submitted ${formatTimestamp(data.submitted_at, meta.data?.business_timezone ?? 'UTC')}.`
+              : ''}
           </div>
         ) : null}
         <ul className="day-grid" aria-label="Hours by day">
@@ -99,7 +104,29 @@ export function DashboardPage() {
             />
           ))}
         </ul>
-        <WeeklySummary week={data} />
+        <WeeklySummary
+          week={data}
+          actions={
+            data.is_editable ? (
+              <div className="submit-action">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={data.summary.entry_count === 0}
+                  aria-describedby={data.summary.entry_count === 0 ? 'submit-hint' : undefined}
+                  onClick={() => setSubmitting(true)}
+                >
+                  {data.status === 'REJECTED' ? 'Resubmit week' : 'Submit week'}
+                </button>
+                {data.summary.entry_count === 0 ? (
+                  <p id="submit-hint" className="hint">
+                    Add at least one entry to submit.
+                  </p>
+                ) : null}
+              </div>
+            ) : null
+          }
+        />
         <TimeEntryList
           entries={data.entries}
           dailyTotals={data.daily_totals}
@@ -162,6 +189,16 @@ export function DashboardPage() {
           onDeleted={() => {
             setDeleting(null);
             setToast('Entry deleted.');
+          }}
+        />
+      ) : null}
+      {submitting && week.data ? (
+        <SubmitWeekDialog
+          week={week.data}
+          onCancel={() => setSubmitting(false)}
+          onSubmitted={() => {
+            setSubmitting(false);
+            setToast('Week submitted for approval.');
           }}
         />
       ) : null}

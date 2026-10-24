@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { deleteEntry } from '../../api/endpoints';
 import { ApiError } from '../../api/client';
 import type { TimeEntry } from '../../api/types';
@@ -14,6 +15,7 @@ interface Props {
 
 export function DeleteEntryDialog({ entry, onCancel, onDeleted }: Props) {
   const queryClient = useQueryClient();
+  const inFlight = useRef(false); // blocks a second click before React disables the button
   const remove = useMutation({
     mutationFn: () => deleteEntry(entry.id),
     onSuccess: async () => {
@@ -43,7 +45,11 @@ export function DeleteEntryDialog({ entry, onCancel, onDeleted }: Props) {
           : null
       }
       onCancel={onCancel}
-      onConfirm={() => remove.mutate()}
+      onConfirm={() => {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        remove.mutate(undefined, { onSettled: () => (inFlight.current = false) });
+      }}
     >
       <p>
         <strong>{entry.project.code}</strong> · {formatHours(entry.hours)} h on{' '}

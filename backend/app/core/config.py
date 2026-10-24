@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     week_start_day: WeekStartDay = WeekStartDay.MONDAY
     max_hours_per_entry: Decimal = Field(default=Decimal("24"), gt=0, le=24)
     description_max_length: int = Field(default=256, ge=1, le=256)
+    # Optional weekly policy, checked when a week is submitted. Unset = no limit (no policy is
+    # invented; set these to the organisation's own rules).
+    max_hours_per_day: Decimal | None = Field(default=None, gt=0, le=24)
+    max_hours_per_week: Decimal | None = Field(default=None, gt=0, le=168)
+    notification_max_attempts: int = Field(default=3, ge=1, le=20)
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -1,4 +1,4 @@
-import { useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Modal } from './Modal';
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
   cancelLabel: string;
   danger?: boolean;
   pending?: boolean;
-  error?: string | null;
+  error?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -28,6 +28,14 @@ export function ConfirmDialog({
   const titleId = useId();
   const bodyId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const hasError = Boolean(error);
+
+  // A pending action disables the focused button, which drops focus to <body>. Moving focus to the
+  // error keeps keyboard users inside the dialog (so Escape still works) and has it announced.
+  useEffect(() => {
+    if (hasError) errorRef.current?.focus();
+  }, [hasError]);
   return (
     <Modal
       variant="dialog"
@@ -43,9 +51,9 @@ export function ConfirmDialog({
         <h2 id={titleId}>{title}</h2>
         <div id={bodyId}>{children}</div>
         {error ? (
-          <p className="form-error" role="alert">
+          <div ref={errorRef} className="form-error" role="alert" tabIndex={-1}>
             {error}
-          </p>
+          </div>
         ) : null}
       </div>
       <div className="dialog-actions">

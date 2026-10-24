@@ -1,4 +1,4 @@
-# API contracts (implemented in Phases 1–4)
+# API contracts (implemented in Phases 1–5)
 
 Base path `/api/v1`. JSON. Dates `YYYY-MM-DD`. Hours are decimal **strings** with two places.
 Interactive docs: `/api/v1/docs` when enabled (development/test by default). Unsafe methods
@@ -16,10 +16,10 @@ Every error uses one envelope (validation, auth, unknown routes, 5xx):
 | --- | --- | --- |
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | no/expired/revoked session; wrong credentials (same message for unknown user) |
 | 403 | `FORBIDDEN` | missing CSRF header, disallowed `Origin`, insufficient role |
-| 409 | `WEEK_NOT_EDITABLE` / `STALE_ENTRY` | the week is submitted/approved; the entry's `version` no longer matches |
+| 409 | `WEEK_NOT_EDITABLE` / `STALE_ENTRY` / `INVALID_TRANSITION` | the week is submitted/approved; the entry's `version` no longer matches; the week is not DRAFT/REJECTED so it cannot be submitted |
 | 404 | `NOT_FOUND` | unknown route or resource; **also another employee's entry** (indistinguishable from missing) |
 | 405 | `METHOD_NOT_ALLOWED` | |
-| 422 | `VALIDATION_ERROR` | malformed input; week date outside 1970–2100 |
+| 422 | `VALIDATION_ERROR` / `BUSINESS_RULE_VIOLATION` | malformed input; week date outside 1970–2100 / a well-formed request the business rules refuse (submission) |
 | 429 | `RATE_LIMITED` | login throttle (`Retry-After` header) |
 | 500 | `INTERNAL_ERROR` | generic message, details only in server logs |
 | 503 | `SERVICE_UNAVAILABLE` | readiness check cannot reach the database |
@@ -42,6 +42,7 @@ The `X-Request-ID` response header equals `error.request_id`; a valid inbound `X
 | `GET /timesheets/weeks/{date}` | session | The caller's week containing `date` (normalised to the week start) |
 | `POST /time-entries` | session + CSRF | Create an entry (201) |
 | `POST /time-entries/batch` | session + CSRF | Week mode: create several entries for one week atomically (201) |
+| `POST /timesheets/weeks/{date}/submit` | session + CSRF | Submit the caller's week for approval (200) |
 | `PATCH /time-entries/{id}` | session + CSRF | Partial update (200) |
 | `DELETE /time-entries/{id}` | session + CSRF | Delete (204) |
 
@@ -140,6 +141,38 @@ and hours. Each successful write appends a row to `time_entry_events` in the sam
   "daily_totals": [ { "date": "2026-10-19", "hours": "8.00" } ] }
 ```
 
+## Submission (Phase 5)
+
+`POST /timesheets/weeks/{date}/submit` — body optional: `{ "comment": "text up to 500 chars" | null }`;
+optional header `Idempotency-Key: <8–100 of A–Z a–z 0–9 _ ->`. `{date}` is any date in the week (normalised
+to the week start). The week is always the caller's own; no employee id exists in the request.
+
+Success `200`: the updated week (same shape as `GET /timesheets/weeks/{date}`) with
+`status: "SUBMITTED"`, `submitted_at`, `is_editable: false`, `draft_count: 0`.
+
+In one transaction it: locks the week, checks the state, re-validates entries and the optional weekly
+policy, sets the status and `submitted_at`, clears the previous review fields, appends a `SUBMITTED`
+approval event (with the comment), enqueues a `TIMESHEET_SUBMITTED` notification, and records the
+idempotency key. Notification delivery happens afterwards and cannot fail the request.
+
+| Situation | Response |
+| --- | --- |
+| No week or no entries | `422 BUSINESS_RULE_VIOLATION`, `field_errors.entries`; no week row is created |
+| A stored entry violates today's limits | `422`, `field_errors["entries.<entry id>.<field>"]` |
+| Optional policy exceeded | `422`, `field_errors["day.<YYYY-MM-DD>"]` and/or `field_errors.week` (only if `MAX_HOURS_PER_DAY` / `MAX_HOURS_PER_WEEK` are set) |
+| Week is SUBMITTED or APPROVED | `409 INVALID_TRANSITION` (nothing changes) |
+| Same `Idempotency-Key` + same week again | `200` with the current week; no second event or notification |
+| Same key, different week | `422`, `field_errors["Idempotency-Key"]` |
+| Malformed key / unknown body field / comment > 500 | `422` |
+| Concurrent submits without a key | exactly one `200`; the others `409` |
+
+Resubmitting a REJECTED week is allowed and behaves the same, setting `resubmission: true` in the
+notification payload. After a successful submission every write to the week returns
+`409 WEEK_NOT_EDITABLE`.
+
+Notification payload (outbox `payload`, ids and totals only): `week_id`, `employee_id`,
+`manager_id` (may be null), `week_start_date`, `entry_count`, `total_hours`, `resubmission`.
+
 ## Not yet implemented
 
-`POST /timesheets/weeks/{date}/submit`, manager `/approvals/*` (spec §8.6–8.7).
+Manager `/approvals/*` (spec §8.7).

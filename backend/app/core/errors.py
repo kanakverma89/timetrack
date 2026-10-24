@@ -153,3 +153,8 @@ class WeekNotEditableError(ConflictError):
 class StaleEntryError(ConflictError):
     code = "STALE_ENTRY"
     message = "This entry was changed elsewhere. Reload it and try again."
+
+
+class InvalidTransitionError(ConflictError):
+    code = "INVALID_TRANSITION"
+    message = "The week is not in a state that allows this action."

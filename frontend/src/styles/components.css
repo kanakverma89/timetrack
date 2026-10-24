@@ -729,3 +729,27 @@
   font-size: 1.1rem;
   text-align: right;
 }
+
+/* ---- submission --------------------------------------------------------------------- */
+.submit-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+.submit-action .hint {
+  margin: 0;
+}
+.form-error ul {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
+.form-error p {
+  margin-bottom: var(--space-1);
+}
+@media (max-width: 720px) {
+  .submit-action {
+    align-items: stretch;
+    width: 100%;
+  }
+}

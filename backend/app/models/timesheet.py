@@ -208,3 +208,26 @@ class NotificationOutbox(IdMixin, Base):
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class IdempotencyKey(IdMixin, Base):
+    """Remembers that a client-supplied key already produced an effect for an aggregate.
+
+    A retry carrying the same key (same user, same scope) is answered with the current state instead
+    of being treated as a conflicting duplicate.
+    """
+
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (
+        UniqueConstraint("user_id", "scope", "key", name="uq_idempotency_keys_user_scope_key"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    scope: Mapped[str] = mapped_column(String(50), nullable=False)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    aggregate_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
