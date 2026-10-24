@@ -220,8 +220,10 @@ def test_updating_fields_is_audited_with_before_and_after(admin: TestClient, db:
     assert response.json()["manager"]["email"] == "boss@example.test"
     [event] = audit_rows(db, entity_id=target.id)
     assert (event.action, event.entity_type) == (ConfigAction.UPDATED, ConfigEntity.USER)
-    assert event.details["label"] == "t@example.test"
-    assert event.details["changes"]["display_name"] == {"from": "T", "to": "Renamed"}
+    assert event.details["label"] == str(target.id)
+    # Names are personal data: the append-only trail records that one changed, never its value.
+    assert event.details["changes"]["display_name"] == {"changed": True}
+    assert "Renamed" not in str(event.details) and "t@example.test" not in str(event.details)
     assert event.details["changes"]["manager_id"] == {"from": None, "to": str(boss.id)}
 
 

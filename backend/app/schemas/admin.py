@@ -345,6 +345,7 @@ class AuditItem(BaseModel):
     actor: PersonRef
     entity_type: ConfigEntity
     entity_id: uuid.UUID | None
+    entity_label: str | None
     action: ConfigAction
     details: dict[str, Any]
 

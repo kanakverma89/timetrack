@@ -150,6 +150,14 @@ def list_audit(
         .limit(page_size)
         .offset((page - 1) * page_size)
     ).all()
+    # Audit rows about people hold only an id; the name shown is the person's name *now*, so an
+    # anonymised user reads as "Former employee" everywhere, including in history.
+    user_ids = {e.entity_id for e, _ in rows if e.entity_type is E.USER and e.entity_id}
+    names = (
+        dict(db.execute(select(User.id, User.display_name).where(User.id.in_(user_ids))).all())
+        if user_ids
+        else {}
+    )
     return AuditList(
         items=[
             AuditItem(
@@ -158,6 +166,10 @@ def list_audit(
                 actor=PersonRef.model_validate(u),
                 entity_type=e.entity_type,
                 entity_id=e.entity_id,
+                entity_label=(
+                    names.get(e.entity_id) if e.entity_type is E.USER and e.entity_id else None
+                )
+                or (None if e.entity_type is E.USER else e.details.get("label")),
                 action=e.action,
                 details=e.details,
             )

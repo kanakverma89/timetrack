@@ -186,7 +186,7 @@ def create_user(db: Session, actor: User, payload: UserCreate) -> tuple[AdminUse
         entity_type=ConfigEntity.USER,
         entity_id=user.id,
         action=ConfigAction.CREATED,
-        label=user.email,
+        label=str(user.id),
         diff={
             "role": {"from": None, "to": user.role.value},
             "manager_id": {"from": None, "to": str(user.manager_id) if user.manager_id else None},
@@ -266,6 +266,10 @@ def update_user(db: Session, actor: User, user_id: uuid.UUID, payload: UserUpdat
         session_repo.revoke_all_for_user(db, user.id)  # signed out everywhere, immediately
 
     diff = config_audit.changes(before, after)
+    if "display_name" in diff:
+        # The audit trail is append-only, so it must never hold personal data that anonymisation
+        # could not later remove: record that a name changed, not what it was.
+        diff["display_name"] = {"changed": True}
     if diff:
         action = ConfigAction.UPDATED
         if "is_active" in diff:
@@ -278,7 +282,7 @@ def update_user(db: Session, actor: User, user_id: uuid.UUID, payload: UserUpdat
             entity_type=ConfigEntity.USER,
             entity_id=user.id,
             action=action,
-            label=user.email,
+            label=str(user.id),
             diff=diff,
         )
     db.commit()
@@ -303,7 +307,7 @@ def reset_password(db: Session, actor: User, user_id: uuid.UUID) -> str:
         entity_type=ConfigEntity.USER,
         entity_id=user.id,
         action=ConfigAction.PASSWORD_RESET,
-        label=user.email,
+        label=str(user.id),
     )
     db.commit()
     return temporary
