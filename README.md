@@ -71,6 +71,7 @@ Sample weeks for `employee@example.test` (Monday-first): `2026-10-19` (draft), `
 | Frontend lint/format/types | `frontend$ npm run lint && npm run format:check && npm run typecheck` |
 | Frontend unit tests | `frontend$ npm test` |
 | Frontend build | `frontend$ npm run build` |
+| Performance (p95 vs 500 ms) | `backend$ .venv/bin/python scripts/perf_check.py` (see `docs/performance.md`) |
 | E2E (all browsers) | `frontend$ npm run test:e2e` — add `-- --project=chromium` for one browser |
 
 Backend tests and E2E need `DATABASE_URL`/`SEED_PASSWORD` exported (or a root `.env`; Playwright
