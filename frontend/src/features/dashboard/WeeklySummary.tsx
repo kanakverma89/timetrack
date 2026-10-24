@@ -1,8 +1,9 @@
+import type { ReactNode } from 'react';
 import type { TimesheetWeek } from '../../api/types';
 import { formatHours } from '../../utils/hours';
 import { TimesheetStatusBadge } from './TimesheetStatusBadge';
 
-export function WeeklySummary({ week }: { week: TimesheetWeek }) {
+export function WeeklySummary({ week, actions }: { week: TimesheetWeek; actions?: ReactNode }) {
   const { summary } = week;
   const stats: Array<[label: string, value: string, testId: string]> = [
     ['Total hours', formatHours(summary.total_hours), 'total-hours'],
@@ -18,6 +19,7 @@ export function WeeklySummary({ week }: { week: TimesheetWeek }) {
         <span className="status-line">
           Status: <TimesheetStatusBadge status={week.status} />
         </span>
+        {actions}
       </div>
       <dl className="stats">
         {stats.map(([label, value, testId]) => (

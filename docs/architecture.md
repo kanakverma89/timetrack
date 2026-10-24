@@ -75,12 +75,15 @@ audit data.
 - Plain CSS with design tokens (`styles/tokens.css`); no component library (see D-9).
 - Dev server proxies `/api` to the backend, so the session cookie is same-origin in development.
 
-## Notifications and approvals (designed, not yet used)
+## Submission and notifications
 
-`approval_events` (append-only) and `notification_outbox` exist in the schema. Phase 5 will add a
-`NotificationPort` interface with a development adapter that logs a safe event and writes an
-outbox row inside the submission transaction. Phase 6 adds manager endpoints guarded by
-`require_roles(MANAGER, ADMIN)` plus team/manager assignment checks.
+`services/submission_service.py` performs the DRAFT/REJECTED → SUBMITTED transition (see decisions
+D-43 to D-48). Business code never calls a delivery provider: it writes a `notification_outbox` row
+inside the same transaction as the change. After the response, a FastAPI background task runs
+`notifications.process_pending`, which claims rows with `FOR UPDATE SKIP LOCKED` and passes them to
+a `NotificationPort` (`app.state.notification_port`; the development adapter writes a structured log
+line with identifiers only). Real providers implement the same one-method port. Phase 6 adds manager
+endpoints guarded by `require_roles(MANAGER, ADMIN)` plus team/manager assignment checks.
 
 ## Environments
 

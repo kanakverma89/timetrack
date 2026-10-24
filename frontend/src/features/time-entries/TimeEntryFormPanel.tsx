@@ -103,6 +103,7 @@ export function TimeEntryFormPanel({
   const fieldId = (name: FieldName) => `${uid}-${name}`;
   const errorId = (name: FieldName) => `${uid}-${name}-error`;
   const summaryRef = useRef<HTMLDivElement>(null);
+  const inFlight = useRef(false); // blocks a second submit before React disables Save
 
   const initial = useMemo(() => initialValues(entry, defaultDate), [entry, defaultDate]);
   const [values, setValues] = useState<EntryFormValues>(initial);
@@ -221,6 +222,12 @@ export function TimeEntryFormPanel({
     setFormError(null);
   }
 
+  function send(request: SaveRequest) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    save.mutate(request, { onSettled: () => (inFlight.current = false) });
+  }
+
   function requestClose() {
     if (save.isPending) return;
     if (dirty) setConfirmDiscard(true);
@@ -253,7 +260,7 @@ export function TimeEntryFormPanel({
         requestAnimationFrame(() => summaryRef.current?.focus());
         return;
       }
-      save.mutate({
+      send({
         kind: 'week',
         dates: result.entries.map((e) => e.date),
         inputs: result.entries.map((e) => ({ ...shared, work_date: e.date, hours: e.hours })),
@@ -269,7 +276,7 @@ export function TimeEntryFormPanel({
       requestAnimationFrame(() => summaryRef.current?.focus());
       return;
     }
-    save.mutate({
+    send({
       kind: 'single',
       input: { ...shared, work_date: values.work_date, hours: values.hours.trim() },
     });

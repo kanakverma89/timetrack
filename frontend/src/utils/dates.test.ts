@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays,
+  formatTimestamp,
   formatWeekRange,
   isValidIsoDate,
   longDate,
@@ -57,5 +58,25 @@ describe('formatting', () => {
   });
   it('shows both years when the week spans New Year', () => {
     expect(formatWeekRange('2025-12-29', '2026-01-04')).toBe('Dec 29, 2025 – Jan 4, 2026');
+  });
+});
+
+describe('formatTimestamp', () => {
+  const normalise = (value: string) => value.replace(/\s/g, ' ');
+
+  it('shows a UTC instant in the business timezone', () => {
+    // 10:11 UTC is 15:41 in Kolkata (UTC+5:30), and 06:11 in New York (UTC-4 in October).
+    expect(normalise(formatTimestamp('2026-10-24T10:11:00Z', 'Asia/Kolkata'))).toBe(
+      'Oct 24, 2026, 3:41 PM',
+    );
+    expect(normalise(formatTimestamp('2026-10-24T10:11:00Z', 'America/New_York'))).toBe(
+      'Oct 24, 2026, 6:11 AM',
+    );
+  });
+
+  it('can land on a different calendar day than UTC', () => {
+    expect(normalise(formatTimestamp('2026-10-24T20:00:00Z', 'Asia/Kolkata'))).toBe(
+      'Oct 25, 2026, 1:30 AM',
+    );
   });
 });

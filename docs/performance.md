@@ -20,7 +20,7 @@ times real HTTP requests from one employee's session. Endpoint samples run seque
 row uses 8 concurrent clients. The destructive helpers only accept database names ending in `_test`
 or `_e2e`.
 
-## Results (2026-10-24)
+## Results (2026-10-24, with Phase 5)
 
 Dataset: 50 employees × 52 weeks = 15,161 entries. Machine: macOS (Apple silicon, 8 CPUs), Python
 3.14.7, PostgreSQL 16 in Docker on the same machine, 1 uvicorn worker. Two consecutive runs; the
@@ -28,17 +28,18 @@ second run is shown, the first differed by at most a few milliseconds at p95.
 
 | Endpoint | n | p50 ms | p95 ms | p99 ms | max ms |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `GET /meta` | 100 | 3.0 | 4.0 | 5.7 | 17.2 |
-| `GET /projects` | 100 | 3.8 | 4.1 | 4.3 | 4.4 |
-| **`GET /timesheets/weeks/{date}` (dashboard)** | 300 | 5.7 | **6.8** | 11.9 | 20.6 |
-| **`POST /time-entries` (save entry)** | 150 | 9.1 | **10.9** | 12.2 | 22.3 |
-| `PATCH /time-entries/{id}` | 150 | 8.3 | 9.6 | 11.3 | 19.9 |
-| `POST /time-entries/batch` (5 days) | 100 | 21.0 | 30.2 | 33.7 | 57.3 |
-| `DELETE /time-entries/{id}` | 150 | 7.1 | 10.4 | 13.6 | 17.7 |
-| `GET` week, 8 concurrent clients | 480 | 22.0 | 47.1 | 60.2 | 73.3 |
+| `GET /meta` | 100 | 3.3 | 3.9 | 4.2 | 4.5 |
+| `GET /projects` | 100 | 4.2 | 4.6 | 4.9 | 5.0 |
+| **`GET /timesheets/weeks/{date}` (dashboard)** | 300 | 5.8 | **6.8** | 7.8 | 19.4 |
+| **`POST /time-entries` (save entry)** | 150 | 9.4 | **12.7** | 20.9 | 31.6 |
+| `PATCH /time-entries/{id}` | 150 | 8.4 | 10.1 | 11.3 | 17.2 |
+| `POST /time-entries/batch` (5 days) | 100 | 21.0 | 25.4 | 28.6 | 29.3 |
+| `DELETE /time-entries/{id}` | 150 | 7.1 | 8.8 | 10.2 | 12.3 |
+| `POST /timesheets/weeks/{date}/submit` | 100 | 9.6 | 11.1 | 13.8 | 20.8 |
+| `GET` week, 8 concurrent clients | 480 | 20.4 | 26.7 | 45.0 | 63.1 |
 
 Both spec targets are met by roughly two orders of magnitude (dashboard p95 6.8 ms and save p95
-10.9 ms against 500 ms). No caching, background workers or query tuning were needed, consistent
+12.7 ms against 500 ms). No caching, background workers or query tuning were needed, consistent
 with the spec's "measure before optimising".
 
 ## What this does not show
@@ -49,5 +50,6 @@ with the spec's "measure before optimising".
   tested.
 - **Login.** One Argon2id login per run is not part of the percentiles; hashing is deliberately slow
   (tens of milliseconds) and is rate-limited.
-- **Submission** (Phase 5) and manager lists (Phase 6, which need pagination) are not yet covered.
+- Notification delivery (a background task after the response) is not timed; manager lists
+  (Phase 6, which need pagination) do not exist yet.
 - The script is not part of CI because timings on shared runners are too noisy to gate on.

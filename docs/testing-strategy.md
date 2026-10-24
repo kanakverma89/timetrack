@@ -3,12 +3,18 @@
 | Layer | Tooling | Scope today |
 | --- | --- | --- |
 | Backend unit | pytest | week math (month/year/leap boundaries, all week-start days, business timezone), decimal summaries, config validation, password/token helpers, rate limiter |
-| Backend API/integration | pytest + FastAPI `TestClient` against a real PostgreSQL | auth, CSRF/CORS, error envelope, health, reference data, week endpoint, data isolation, unauthenticated access; **entry create/update/delete**: validation matrix, task rules, ownership (404), locked weeks (409), optimistic concurrency, audit events, and real concurrent requests (parallel first writes → one week; parallel same-version updates → one winner); **batch**: all-or-nothing (invalid item → nothing persisted incl. no week row), forced mid-transaction failure rolls back, same-week/duplicate-date/size rules, per-item error addressing, concurrent batches |
+| Backend API/integration | pytest + FastAPI `TestClient` against a real PostgreSQL | auth, CSRF/CORS, error envelope, health, reference data, week endpoint, data isolation, unauthenticated access; **entry create/update/delete**: validation matrix, task rules, ownership (404), locked weeks (409), optimistic concurrency, audit events, and real concurrent requests (parallel first writes → one week; parallel same-version updates → one winner); **batch**: all-or-nothing (invalid item → nothing persisted incl. no week row), forced mid-transaction failure rolls back, same-week/duplicate-date/size rules, per-item error addressing, concurrent batches; **submission**: lifecycle (DRAFT/REJECTED ok, SUBMITTED/APPROVED 409), validation and policy, audit + outbox written together, rollback when a late step fails, idempotent retries, true concurrent submits (one transition), delivery success/failure/retry/parking, no free text in logs or payloads |
 | Database integrity | pytest | CHECK/FK/unique constraints enforced by PostgreSQL itself |
 | Migrations | pytest + Alembic | apply from an empty DB, no drift vs models, downgrade to base and re-apply |
-| Frontend unit/component | Vitest + Testing Library (`fetch` mocked at the network boundary) | date/hour utils, API client, dashboard components, full App flows (sign-in, navigation, loading/empty/error/retry, read-only, session expiry); entry validation, project combobox, and the add/edit/delete/discard flows against a stateful fake API (focus, double-submit, stale task, 422/409 handling); **Week mode**: exact live total, which days are sent, server errors mapped back to the right day, mode switching keeps data |
+| Frontend unit/component | Vitest + Testing Library (`fetch` mocked at the network boundary) | date/hour utils, API client, dashboard components, full App flows (sign-in, navigation, loading/empty/error/retry, read-only, session expiry); entry validation, project combobox, and the add/edit/delete/discard flows against a stateful fake API (focus, double-submit, stale task, 422/409 handling); **Week mode**: exact live total, which days are sent, server errors mapped back to the right day, mode switching keeps data; **submission dialog**: exact request (body + idempotency header), one key per action, error mapping to entries/days, focus on error, instant double-click sends one request |
 | End-to-end | Playwright (Chromium, Firefox, WebKit) against the real API + disposable seeded DB | see below |
 | Accessibility | `@axe-core/playwright` (WCAG 2.0/2.1/2.2 A+AA tags) + keyboard tests | login, dashboard in several states, mobile width |
+
+## Helper for states without an API yet
+
+`backend/scripts/e2e_state.py` sets a week to REJECTED/APPROVED in the disposable E2E database so
+tests can cover those states before manager decisions exist (Phase 6). It refuses any database name
+not ending `_test`/`_e2e`.
 
 ## Isolation and determinism
 
@@ -38,8 +44,8 @@
 | 10 | Multi-day entry in Week mode, calculated total | covered (live total; persisted as separate dated records; reload) |
 | 11 | Invalid batch rejected without partial saving | covered via a request corrupted in flight (UI shows the failing day, DB has no entries and no week row) plus direct API tests |
 | 12 | Weekly summary matches persisted API data | covered, including after mutations and for 0.10 + 0.20 |
-| 13 | Submit a valid week | **not implemented** (Phase 5) |
-| 14 | Submitted entries read-only | covered for a seeded submitted week (no controls; API returns 409) |
+| 13 | Submit a valid week | covered (confirmation, Submitted status, persisted, survives reload); also policy errors, resubmission of a rejected week, empty week, duplicates/idempotency |
+| 14 | Submitted entries read-only | covered for a week submitted through the UI and for seeded weeks (no controls; every write returns 409) |
 | 15 | Cannot access/modify another employee's data | covered for entries by id (404 for patch/delete/unknown); there is no ID-addressable timesheet endpoint yet |
 | 16 | Failed request shows error and retry | covered (5xx, network failure, expired session) |
 | 17 | Narrow viewport usable | covered at 375 px for the dashboard, the entry panel and the Week grid |

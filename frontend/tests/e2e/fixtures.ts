@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { execFileSync } from 'node:child_process';
 import { expect, test as base, type APIRequestContext, type Page } from '@playwright/test';
 
 export const EMPLOYEE = 'employee@example.test';
@@ -68,13 +69,32 @@ export const WEEK_KEYS = [
   'week-a11y',
   'week-mobile',
   'week-keyboard',
+  'submit',
+  'submit-cancel',
+  'submit-empty',
+  'submit-double',
+  'submit-policy',
+  'submit-resubmit',
+  'submit-a11y',
+  'submit-mobile',
+  'submit-api',
+  'submit-isolation',
 ] as const;
 export type WeekKey = (typeof WEEK_KEYS)[number];
 
 const PROJECT_NAMES = ['chromium', 'firefox', 'webkit'];
 
-export function weekFor(key: WeekKey, projectName: string): string {
-  const slot = WEEK_KEYS.indexOf(key) * PROJECT_NAMES.length + PROJECT_NAMES.indexOf(projectName);
+/**
+ * One week per (test key, browser, retry). Tests that *submit* a week cannot be reset afterwards
+ * (a submitted week is locked), so each retry attempt gets a fresh week as well.
+ */
+const MAX_ATTEMPTS = 3;
+
+export function weekFor(key: WeekKey, projectName: string, attempt = 0): string {
+  const slot =
+    (WEEK_KEYS.indexOf(key) * PROJECT_NAMES.length + PROJECT_NAMES.indexOf(projectName)) *
+      MAX_ATTEMPTS +
+    attempt;
   const base = Date.UTC(2027, 0, 4); // Monday 2027-01-04
   return new Date(base + slot * 7 * 86_400_000).toISOString().slice(0, 10);
 }
@@ -94,8 +114,9 @@ export async function isolatedWeek(
   request: APIRequestContext,
   key: WeekKey,
   projectName: string,
+  attempt = 0,
 ): Promise<string> {
-  const week = weekFor(key, projectName);
+  const week = weekFor(key, projectName, attempt);
   const data = await getWeek(request, week);
   for (const entry of data.entries) {
     await request.delete(`${API}/time-entries/${entry.id}`, { headers: CSRF });
@@ -156,4 +177,36 @@ export async function createEntryViaApi(
   });
   expect(response.status(), await response.text()).toBe(201);
   return response.json();
+}
+
+/** The disposable E2E database URL, derived from DATABASE_URL (same rule as playwright.config). */
+function e2eDatabaseUrl(): string {
+  const base = process.env.DATABASE_URL ?? '';
+  const url = new URL(base.replace(/^postgresql\+psycopg:/, 'postgresql:'));
+  url.pathname = '/timetrack_e2e';
+  return url.toString().replace(/^postgresql:/, 'postgresql+psycopg:');
+}
+
+/** Put a week into a lifecycle state (e.g. a manager's rejection, which has no API until Phase 6). */
+export function setWeekStatus(
+  email: string,
+  week: string,
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED',
+  comment?: string,
+) {
+  const python = process.env.BACKEND_PYTHON ?? '.venv/bin/python';
+  execFileSync(
+    python,
+    [
+      'scripts/e2e_state.py',
+      '--email',
+      email,
+      '--week',
+      week,
+      '--status',
+      status,
+      ...(comment ? ['--comment', comment] : []),
+    ],
+    { cwd: '../backend', env: { ...process.env, DATABASE_URL: e2eDatabaseUrl() }, stdio: 'pipe' },
+  );
 }

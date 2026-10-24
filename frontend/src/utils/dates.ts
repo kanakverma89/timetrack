@@ -55,3 +55,15 @@ export function weekdayIndex(iso: string): number {
 
 export const longDateWithYear = (iso: string) =>
   format(iso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+/** "Oct 24, 2026, 3:41 PM" for an ISO timestamp, shown in the business timezone. */
+export function formatTimestamp(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(iso));
+}

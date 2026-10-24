@@ -266,6 +266,17 @@ def main() -> int:
             {204},
         )
 
+        # Submission: each timed request moves a different draft week (with one entry) to SUBMITTED.
+        submit_weeks = future[250:350]
+        for monday in submit_weeks:
+            client.post("/time-entries", json=body(monday)).raise_for_status()
+        timer.run(
+            "POST /timesheets/weeks/{date}/submit",
+            100,
+            lambda i: client.post(f"/timesheets/weeks/{submit_weeks[i]}/submit", json={}),
+            {200},
+        )
+
         # Light parallel load: 8 concurrent clients reading different weeks.
         def worker(_: int) -> list[float]:
             local = httpx.Client(

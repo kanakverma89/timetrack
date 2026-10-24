@@ -63,3 +63,14 @@ export const deleteEntry = (id: string) =>
 /** Week mode: all entries are created in one transaction or none are. */
 export const createEntriesBatch = (entries: EntryInput[]) =>
   apiFetch<BatchResult>('/time-entries/batch', { method: 'POST', body: { entries } });
+
+/**
+ * Submit the week for approval. The idempotency key lets a retry (double click, flaky network)
+ * return the result of the first attempt instead of failing as a duplicate.
+ */
+export const submitWeek = (weekStart: string, comment: string | null, idempotencyKey: string) =>
+  apiFetch<TimesheetWeek>(`/timesheets/weeks/${encodeURIComponent(weekStart)}/submit`, {
+    method: 'POST',
+    body: { comment },
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });

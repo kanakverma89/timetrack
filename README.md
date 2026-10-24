@@ -5,9 +5,8 @@ FastAPI backend, PostgreSQL, Playwright end-to-end tests. See [`spec.md`](spec.m
 specification and [`docs/implementation-report.md`](docs/implementation-report.md) for what is
 built and verified.
 
-**Status:** Phases 0–4 (foundation, Employee Dashboard, add/edit/delete of time entries in Day mode,
-and Week-mode batch entry). Weekly submission (Phase 5), manager approvals and administration are
-not implemented yet.
+**Status:** Phases 0–5 (foundation, Employee Dashboard, Day- and Week-mode time entry, and weekly
+submission). Manager approvals (Phase 6) and administration (Phase 7) are not implemented yet.
 
 ## Prerequisites
 
