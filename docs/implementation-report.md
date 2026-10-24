@@ -52,7 +52,7 @@ Everything marked "ran" was executed; anything not listed was not run.
 | `scripts/backup-restore-drill.sh` | passed against the development database: 16 tables with identical row counts, same schema version, 3 triggers present, `UPDATE` refused on both non-empty audit tables, throwaway database dropped |
 | `docker compose -f compose.prod.yaml up --build --wait` | all four services built and healthy; API runs as UID 10001 on a read-only filesystem; first administrator created with the CLI; sign-in through nginx; HSTS, one CSP, `Secure` cookie, docs 404, forced password change enforced; real client address visible to the API behind nginx |
 | CSP walk-through of the nginx-served app (Chromium, Firefox, WebKit) | sign-in, forced change and 14 screens/dialogs completed in each; **no CSP violations in Chromium or Firefox**; WebKit logs `style-src-attr` reports for native selects (engine quirk, no visible or functional effect found; `security-review.md` R-9). Run with the API in test mode, see R-10 |
-| GitHub Actions on the Phase 7 branch | see the end of this document |
+| GitHub Actions on the Phase 7 branch (commit `ef85792`) | **all jobs green**: backend on Python 3.12 and 3.14, frontend on Node 22, 24 and 26, the E2E job (full Playwright suite on three browsers including the admin projects, 18 min 35 s on the shared runner) and the separate dependency-audit workflow (Python and Node). A later documentation-only commit re-runs the same workflows; its result was not awaited |
 
 ### Mutation checks for Phase 7 (change the code, confirm a test fails)
 
