@@ -72,3 +72,9 @@ class TimesheetWeekRead(BaseModel):
     summary: WeekSummaryRead
     daily_totals: list[DailyTotalRead]
     entries: list[TimeEntryRead]
+
+
+class TimeEntryBatchRead(BaseModel):
+    entries: list[TimeEntryRead]
+    summary: WeekSummaryRead
+    daily_totals: list[DailyTotalRead]

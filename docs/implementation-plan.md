@@ -1,7 +1,8 @@
 # Implementation plan
 
-Scope so far: **Phases 0–3** from `spec.md` (discovery, foundation, Employee Dashboard read APIs,
-and Day-mode entry create/edit/delete). Phases 4–7 are designed for but not implemented.
+Scope so far: **Phases 0–4** from `spec.md` (discovery, foundation, Employee Dashboard read APIs,
+Day-mode entry create/edit/delete, and Week-mode batch entry). Phases 5–7 are designed for but not
+implemented.
 
 ## 1. Repository assessment (Phase 0)
 
@@ -70,9 +71,16 @@ All commands are from the repository root unless noted. Full details live in `RE
       discard and delete confirmations, toast, totals refreshed from the API
 - [x] Backend, component and Playwright coverage (see `docs/testing-strategy.md`)
 
+### Phase 4 — Week-mode batch entry
+
+- [x] `POST /time-entries/batch`: atomic, validated per item, one week, one entry per date
+- [x] Day/Week toggle, per-day grid with enable/disable, exact live total, per-day errors,
+      "already logged" hints; Day/Week state preserved when switching
+- [x] Backend, component and Playwright coverage (spec scenarios 10–11)
+
 ### Explicitly not yet implemented
 
-Phase 4 (week-mode batch), Phase 5 (submission),
+Phase 5 (submission),
 Phase 6 (manager approvals), Phase 7 (administration/hardening). The schema, auth roles, audit
 tables and notification outbox they need already exist, but there are no endpoints or UI for them
 (except the entry audit table, which is now written by Phase 3).

@@ -13,7 +13,15 @@ from app.core.config import Settings
 from app.core.db import get_db
 from app.db_admin import assert_disposable, recreate_database, upgrade_database
 from app.main import create_app
-from app.models import Base
+from app.models import Base, Classification
+from app.tests.factories import (
+    login,
+    make_earning,
+    make_project,
+    make_task,
+    make_user,
+)
+from app.tests.support import World
 
 TEST_SESSION_SECRET = "test-only-secret-not-used-anywhere-else-0123456789"  # noqa: S105
 TEST_ORIGIN = "http://localhost:5173"
@@ -107,3 +115,25 @@ def make_client(engine: Engine) -> Any:
 def client(make_client: Any, settings: Settings) -> TestClient:
     result: TestClient = make_client(settings)
     return result
+
+
+@pytest.fixture
+def world(db: Session) -> World:
+    """An employee, a project with one task, a task-less project and two earning codes."""
+    user = make_user(db)
+    project = make_project(db, "P1")
+    task = make_task(db, project, "T1")
+    return World(
+        user=user,
+        project=project,
+        task=task,
+        plain_project=make_project(db, "P2"),
+        earning=make_earning(db, "REG", Classification.CAPPED),
+        overtime=make_earning(db, "OVT", Classification.NON_CAPPED),
+    )
+
+
+@pytest.fixture
+def authed(client: TestClient, world: World) -> TestClient:
+    login(client)
+    return client

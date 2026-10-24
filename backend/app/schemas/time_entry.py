@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TimeEntryCreate(BaseModel):
@@ -32,3 +32,14 @@ class TimeEntryUpdate(BaseModel):
     task_id: uuid.UUID | None = None
     description: str | None = None
     version: int | None = None
+
+
+MAX_BATCH_ENTRIES = 31
+
+
+class TimeEntryBatchCreate(BaseModel):
+    """Week mode: several dated entries for one week, created atomically."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entries: list[TimeEntryCreate] = Field(min_length=1, max_length=MAX_BATCH_ENTRIES)

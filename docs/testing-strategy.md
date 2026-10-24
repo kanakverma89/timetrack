@@ -3,10 +3,10 @@
 | Layer | Tooling | Scope today |
 | --- | --- | --- |
 | Backend unit | pytest | week math (month/year/leap boundaries, all week-start days, business timezone), decimal summaries, config validation, password/token helpers, rate limiter |
-| Backend API/integration | pytest + FastAPI `TestClient` against a real PostgreSQL | auth, CSRF/CORS, error envelope, health, reference data, week endpoint, data isolation, unauthenticated access; **entry create/update/delete**: validation matrix, task rules, ownership (404), locked weeks (409), optimistic concurrency, audit events, and real concurrent requests (parallel first writes → one week; parallel same-version updates → one winner) |
+| Backend API/integration | pytest + FastAPI `TestClient` against a real PostgreSQL | auth, CSRF/CORS, error envelope, health, reference data, week endpoint, data isolation, unauthenticated access; **entry create/update/delete**: validation matrix, task rules, ownership (404), locked weeks (409), optimistic concurrency, audit events, and real concurrent requests (parallel first writes → one week; parallel same-version updates → one winner); **batch**: all-or-nothing (invalid item → nothing persisted incl. no week row), forced mid-transaction failure rolls back, same-week/duplicate-date/size rules, per-item error addressing, concurrent batches |
 | Database integrity | pytest | CHECK/FK/unique constraints enforced by PostgreSQL itself |
 | Migrations | pytest + Alembic | apply from an empty DB, no drift vs models, downgrade to base and re-apply |
-| Frontend unit/component | Vitest + Testing Library (`fetch` mocked at the network boundary) | date/hour utils, API client, dashboard components, full App flows (sign-in, navigation, loading/empty/error/retry, read-only, session expiry); entry validation, project combobox, and the add/edit/delete/discard flows against a stateful fake API (focus, double-submit, stale task, 422/409 handling) |
+| Frontend unit/component | Vitest + Testing Library (`fetch` mocked at the network boundary) | date/hour utils, API client, dashboard components, full App flows (sign-in, navigation, loading/empty/error/retry, read-only, session expiry); entry validation, project combobox, and the add/edit/delete/discard flows against a stateful fake API (focus, double-submit, stale task, 422/409 handling); **Week mode**: exact live total, which days are sent, server errors mapped back to the right day, mode switching keeps data |
 | End-to-end | Playwright (Chromium, Firefox, WebKit) against the real API + disposable seeded DB | see below |
 | Accessibility | `@axe-core/playwright` (WCAG 2.0/2.1/2.2 A+AA tags) + keyboard tests | login, dashboard in several states, mobile width |
 
@@ -35,15 +35,17 @@
 | 7 | Edit a draft entry; totals update | covered |
 | 8 | Cancel an edited form; warned before discarding | covered |
 | 9 | Delete a draft entry after confirmation | covered |
-| 10–11 | Week-mode entry; invalid batch rejected atomically | **not implemented** (Phase 4) |
+| 10 | Multi-day entry in Week mode, calculated total | covered (live total; persisted as separate dated records; reload) |
+| 11 | Invalid batch rejected without partial saving | covered via a request corrupted in flight (UI shows the failing day, DB has no entries and no week row) plus direct API tests |
 | 12 | Weekly summary matches persisted API data | covered, including after mutations and for 0.10 + 0.20 |
 | 13 | Submit a valid week | **not implemented** (Phase 5) |
 | 14 | Submitted entries read-only | covered for a seeded submitted week (no controls; API returns 409) |
 | 15 | Cannot access/modify another employee's data | covered for entries by id (404 for patch/delete/unknown); there is no ID-addressable timesheet endpoint yet |
 | 16 | Failed request shows error and retry | covered (5xx, network failure, expired session) |
-| 17 | Narrow viewport usable | covered at 375 px for the dashboard and the entry panel |
+| 17 | Narrow viewport usable | covered at 375 px for the dashboard, the entry panel and the Week grid |
 
 ## Known gaps
 
-No performance measurement (spec §4.2), no screen-reader testing (axe finds only a subset of
-issues), no CI run of the workflow. WebKit/macOS Tab-order assertions are skipped (two tests).
+No performance measurement (spec §4.2) and no screen-reader testing (axe finds only a subset of
+issues). WebKit Tab-order assertions are skipped (three tests). CI (GitHub Actions, Ubuntu, Python
+3.12, Node 22) has run the whole suite, including all three browsers, successfully.

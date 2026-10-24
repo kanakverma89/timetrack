@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { compareDecimal, isDirty, validateEntry, type EntryFormValues } from './validation';
+import {
+  compareDecimal,
+  defaultWeekDays,
+  isDirty,
+  isWeekDirty,
+  sumHours,
+  validateEntry,
+  validateWeek,
+  type EntryFormValues,
+} from './validation';
 
 const ctx = {
   weekStart: '2026-10-19',
@@ -101,5 +110,119 @@ describe('isDirty', () => {
     expect(isDirty(valid, { ...valid })).toBe(false);
     expect(isDirty({ ...valid, hours: '8' }, valid)).toBe(true);
     expect(isDirty({ ...valid, description: 'Work ' }, valid)).toBe(true);
+  });
+});
+
+describe('sumHours', () => {
+  it('adds decimal strings exactly (integer cents, no floating point)', () => {
+    expect(sumHours(['0.1', '0.2'])).toBe('0.30');
+    expect(sumHours(['8', '7.5', '0.25'])).toBe('15.75');
+    expect(sumHours(['24', '24', '24', '24', '24', '24', '24'])).toBe('168.00');
+    expect(sumHours(Array.from({ length: 1000 }, () => '0.01'))).toBe('10.00');
+  });
+  it('ignores blanks and values that are not valid hours', () => {
+    expect(sumHours(['', '  ', 'abc', '-3', '1e2', '1.234', '2'])).toBe('2.00');
+    expect(sumHours([])).toBe('0.00');
+  });
+});
+
+describe('defaultWeekDays', () => {
+  it('lists the seven dates and leaves Saturday and Sunday unchecked', () => {
+    const days = defaultWeekDays('2026-10-19');
+    expect(days.map((d) => d.date)).toEqual([
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-21',
+      '2026-10-22',
+      '2026-10-23',
+      '2026-10-24',
+      '2026-10-25',
+    ]);
+    expect(days.map((d) => d.enabled)).toEqual([true, true, true, true, true, false, false]);
+    expect(days.every((d) => d.hours === '')).toBe(true);
+  });
+  it('works across a year boundary and for a Sunday-first week', () => {
+    expect(defaultWeekDays('2025-12-29')[3]?.date).toBe('2026-01-01');
+    const sundayFirst = defaultWeekDays('2026-10-18');
+    expect(sundayFirst.map((d) => d.enabled)).toEqual([false, true, true, true, true, true, false]);
+  });
+});
+
+describe('validateWeek', () => {
+  const days = (hours: Array<string | null>) =>
+    defaultWeekDays('2026-10-19').map((d, i) => ({
+      ...d,
+      enabled: hours[i] !== null && hours[i] !== undefined,
+      hours: hours[i] ?? '',
+    }));
+
+  it('collects only enabled days with positive hours, in date order', () => {
+    const result = validateWeek(valid, days(['8', '7.5', null, '0', '', null, null]), ctx);
+    expect(result.entries).toEqual([
+      { date: '2026-10-19', hours: '8' },
+      { date: '2026-10-20', hours: '7.5' },
+    ]);
+    expect(result.days).toEqual({});
+    expect(result.form).toBeNull();
+    expect(result.fields).toEqual({});
+  });
+
+  it('ignores hours typed into a day that is switched off', () => {
+    const list = days(['8', null, null, null, null, null, null]);
+    list[1] = { ...list[1]!, enabled: false, hours: '99' };
+    expect(validateWeek(valid, list, ctx).entries).toHaveLength(1);
+    expect(validateWeek(valid, list, ctx).days).toEqual({});
+  });
+
+  it('requires at least one day with positive hours', () => {
+    for (const list of [days([]), days(['', '', '', '', '', null, null]), days(['0', '0.00'])]) {
+      const result = validateWeek(valid, list, ctx);
+      expect(result.form).toBe('Enter hours for at least one day.');
+      expect(result.entries).toEqual([]);
+    }
+  });
+
+  it('reports invalid days individually and does not also show the "at least one" message', () => {
+    const result = validateWeek(valid, days(['abc', '25', '8', '7.555', '-1']), ctx);
+    expect(result.days).toEqual({
+      '2026-10-19': 'Enter hours as a number, for example 7.5.',
+      '2026-10-20': 'Hours cannot exceed 24 per entry.',
+      '2026-10-22': 'Hours can have at most two decimal places.',
+      '2026-10-23': 'Hours must be greater than zero.',
+    });
+    expect(result.form).toBeNull();
+    expect(result.entries).toEqual([{ date: '2026-10-21', hours: '8' }]);
+  });
+
+  it('validates the shared fields too', () => {
+    const result = validateWeek(
+      { ...valid, project_id: '', earning_code_id: '', description: ' ' },
+      days(['8']),
+      ctx,
+    );
+    expect(Object.keys(result.fields).sort()).toEqual([
+      'description',
+      'earning_code_id',
+      'project_id',
+    ]);
+  });
+});
+
+describe('isWeekDirty', () => {
+  it('notices toggles and typed hours', () => {
+    const base = defaultWeekDays('2026-10-19');
+    expect(isWeekDirty(base, base)).toBe(false);
+    expect(
+      isWeekDirty(
+        base.map((d, i) => (i === 0 ? { ...d, hours: '1' } : d)),
+        base,
+      ),
+    ).toBe(true);
+    expect(
+      isWeekDirty(
+        base.map((d, i) => (i === 5 ? { ...d, enabled: true } : d)),
+        base,
+      ),
+    ).toBe(true);
   });
 });

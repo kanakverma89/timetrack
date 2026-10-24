@@ -3,96 +3,34 @@ from __future__ import annotations
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Classification,
-    EarningCode,
     EntryAction,
-    Project,
-    ProjectTask,
     TimeEntry,
     TimeEntryEvent,
     TimesheetWeek,
-    User,
     WeekStatus,
 )
 from app.tests.conftest import make_settings
 from app.tests.factories import (
     PASSWORD,
     login,
-    make_earning,
     make_entry,
     make_project,
     make_task,
     make_user,
     make_week,
 )
+from app.tests.support import API, World, count, payload, week_view
 
-API = "/api/v1"
 MON = date(2026, 10, 19)  # Monday; the week runs to Sunday 2026-10-25
-
-
-@dataclass
-class World:
-    user: User
-    project: Project  # has one active task
-    task: ProjectTask
-    plain_project: Project  # no tasks
-    earning: EarningCode
-    overtime: EarningCode
-
-
-@pytest.fixture
-def world(db: Session) -> World:
-    user = make_user(db)
-    project = make_project(db, "P1")
-    task = make_task(db, project, "T1")
-    return World(
-        user=user,
-        project=project,
-        task=task,
-        plain_project=make_project(db, "P2"),
-        earning=make_earning(db, "REG", Classification.CAPPED),
-        overtime=make_earning(db, "OVT", Classification.NON_CAPPED),
-    )
-
-
-@pytest.fixture
-def authed(client: TestClient, world: World) -> TestClient:
-    login(client)
-    return client
-
-
-def payload(w: World, **overrides: Any) -> dict[str, Any]:
-    body: dict[str, Any] = {
-        "work_date": "2026-10-21",
-        "hours": "8.00",
-        "earning_code_id": str(w.earning.id),
-        "project_id": str(w.project.id),
-        "task_id": str(w.task.id),
-        "description": "Implementation work",
-    }
-    body.update(overrides)
-    return body
-
-
-def count(db: Session, model: type) -> int:
-    db.expire_all()
-    return db.scalar(select(func.count()).select_from(model)) or 0
-
-
-def week_view(client: TestClient, day: str = "2026-10-19") -> dict[str, Any]:
-    response = client.get(f"{API}/timesheets/weeks/{day}")
-    assert response.status_code == 200
-    return response.json()  # type: ignore[no-any-return]
 
 
 # ---------------------------------------------------------------------------------- create

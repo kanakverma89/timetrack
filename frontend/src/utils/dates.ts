@@ -47,3 +47,11 @@ export function formatWeekRange(startIso: string, endIso: string): string {
   const full = (iso: string) => format(iso, { month: 'short', day: 'numeric', year: 'numeric' });
   return `${full(startIso)} – ${full(endIso)}`;
 }
+
+/** 0 = Sunday … 6 = Saturday, from the calendar date itself (no timezone involved). */
+export function weekdayIndex(iso: string): number {
+  return mustParse(iso).getUTCDay();
+}
+
+export const longDateWithYear = (iso: string) =>
+  format(iso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });

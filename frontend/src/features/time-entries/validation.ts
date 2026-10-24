@@ -1,4 +1,4 @@
-import { formatWeekRange, isValidIsoDate } from '../../utils/dates';
+import { addDays, formatWeekRange, isValidIsoDate, weekdayIndex } from '../../utils/dates';
 
 export interface EntryFormValues {
   work_date: string;
@@ -58,6 +58,22 @@ function hoursError(raw: string, maxHours: string): string | null {
   return null;
 }
 
+/** Rules for the fields that Day and Week mode share. */
+export function validateShared(values: EntryFormValues, ctx: ValidationContext): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!values.earning_code_id) errors.earning_code_id = 'Select an earning code.';
+  if (!values.project_id) errors.project_id = 'Select a project.';
+  else if (ctx.projectHasTasks && !values.task_id)
+    errors.task_id = 'Select a task for this project.';
+
+  const description = values.description.trim();
+  if (!description) errors.description = 'Description is required.';
+  else if (description.length > ctx.descriptionMax) {
+    errors.description = `Description must be ${ctx.descriptionMax} characters or fewer.`;
+  }
+  return errors;
+}
+
 /** Client-side mirror of the server rules, so obvious mistakes are caught before a round trip. */
 export function validateEntry(values: EntryFormValues, ctx: ValidationContext): FieldErrors {
   const errors: FieldErrors = {};
@@ -71,17 +87,86 @@ export function validateEntry(values: EntryFormValues, ctx: ValidationContext): 
   const hours = hoursError(values.hours, ctx.maxHours);
   if (hours) errors.hours = hours;
 
-  if (!values.earning_code_id) errors.earning_code_id = 'Select an earning code.';
-  if (!values.project_id) errors.project_id = 'Select a project.';
-  else if (ctx.projectHasTasks && !values.task_id)
-    errors.task_id = 'Select a task for this project.';
+  return { ...errors, ...validateShared(values, ctx) };
+}
 
-  const description = values.description.trim();
-  if (!description) errors.description = 'Description is required.';
-  else if (description.length > ctx.descriptionMax) {
-    errors.description = `Description must be ${ctx.descriptionMax} characters or fewer.`;
+// ---- Week mode ------------------------------------------------------------------------------
+
+export interface WeekDay {
+  date: string;
+  enabled: boolean;
+  hours: string;
+}
+
+/** Seven days from the week start; Saturdays and Sundays start unchecked. */
+export function defaultWeekDays(weekStart: string): WeekDay[] {
+  return Array.from({ length: 7 }, (_, offset) => {
+    const date = addDays(weekStart, offset);
+    const weekday = weekdayIndex(date);
+    return { date, enabled: weekday !== 0 && weekday !== 6, hours: '' };
+  });
+}
+
+const toCents = (value: string): bigint => {
+  const [whole = '0', fraction = ''] = value.split('.');
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0').slice(0, 2));
+};
+
+/** Exact sum of decimal strings (integer cents); entries that are not valid numbers are skipped. */
+export function sumHours(values: string[]): string {
+  let total = 0n;
+  for (const raw of values) {
+    const value = raw.trim();
+    if (DECIMAL.test(value) && (value.split('.')[1] ?? '').length <= 2) total += toCents(value);
   }
-  return errors;
+  return `${total / 100n}.${String(total % 100n).padStart(2, '0')}`;
+}
+
+/** An enabled day counts only if it has a positive amount; blank or 0 means "nothing that day". */
+const isPositive = (hours: string) =>
+  DECIMAL.test(hours.trim()) && compareDecimal(hours.trim(), '0') > 0;
+
+export interface WeekValidation {
+  fields: FieldErrors;
+  /** Errors keyed by day (YYYY-MM-DD). */
+  days: Record<string, string>;
+  form: string | null;
+  /** The days that will be saved, in date order. */
+  entries: Array<{ date: string; hours: string }>;
+}
+
+export function validateWeek(
+  values: EntryFormValues,
+  days: WeekDay[],
+  ctx: ValidationContext,
+): WeekValidation {
+  const fields = validateShared(values, ctx);
+  const dayErrors: Record<string, string> = {};
+  const entries: Array<{ date: string; hours: string }> = [];
+
+  for (const day of days) {
+    if (!day.enabled) continue;
+    const hours = day.hours.trim();
+    if (hours === '') continue;
+    // "0" is allowed (non-negative) but records nothing for that day.
+    if (DECIMAL.test(hours) && compareDecimal(hours, '0') === 0) continue;
+    const problem = hoursError(hours, ctx.maxHours);
+    if (problem) dayErrors[day.date] = problem;
+    else if (isPositive(hours)) entries.push({ date: day.date, hours });
+  }
+
+  const form =
+    entries.length === 0 && Object.keys(dayErrors).length === 0
+      ? 'Enter hours for at least one day.'
+      : null;
+  return { fields, days: dayErrors, form, entries };
+}
+
+export function isWeekDirty(current: WeekDay[], initial: WeekDay[]): boolean {
+  return current.some((day, i) => {
+    const base = initial[i];
+    return !base || day.enabled !== base.enabled || day.hours !== base.hours;
+  });
 }
 
 export function isDirty(current: EntryFormValues, initial: EntryFormValues): boolean {

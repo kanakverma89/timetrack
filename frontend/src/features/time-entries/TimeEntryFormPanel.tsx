@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
+  createEntriesBatch,
   createEntry,
   fetchEarningCodes,
   fetchProjects,
@@ -19,16 +20,26 @@ import type {
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FieldError } from '../../components/FieldError';
 import { Modal } from '../../components/Modal';
-import { formatWeekRange } from '../../utils/dates';
+import { formatWeekRange, longDate } from '../../utils/dates';
+import { EntryModeToggle, type EntryMode } from './EntryModeToggle';
 import { ProjectCombobox } from './ProjectCombobox';
+import { WeekHoursGrid, weekHoursInputId } from './WeekHoursGrid';
 import {
   FIELD_ORDER,
+  defaultWeekDays,
   isDirty,
+  isWeekDirty,
+  sumHours,
   validateEntry,
+  validateWeek,
   type EntryFormValues,
   type FieldErrors,
   type FieldName,
+  type WeekDay,
 } from './validation';
+
+type SaveRequest =
+  { kind: 'single'; input: EntryInput } | { kind: 'week'; inputs: EntryInput[]; dates: string[] };
 
 interface Props {
   week: TimesheetWeek;
@@ -98,6 +109,16 @@ export function TimeEntryFormPanel({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Both modes keep their own state, so switching modes never discards anything the user typed.
+  const [mode, setMode] = useState<EntryMode>('day');
+  const initialDays = useMemo(() => defaultWeekDays(week.week_start_date), [week.week_start_date]);
+  const [days, setDays] = useState<WeekDay[]>(initialDays);
+  const [dayErrors, setDayErrors] = useState<Record<string, string>>({});
+  const weekMode = mode === 'week' && entry === null;
+  const existingHours = useMemo(
+    () => Object.fromEntries(week.daily_totals.map((d) => [d.date, d.hours])),
+    [week.daily_totals],
+  );
 
   const projects = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, staleTime: 300_000 });
   const earningCodes = useQuery({
@@ -128,28 +149,46 @@ export function TimeEntryFormPanel({
   const referenceReady = projects.isSuccess && earningCodes.isSuccess;
   const referenceFailed = projects.isError || earningCodes.isError;
 
-  const dirty = isDirty(values, initial);
+  const dirty = isDirty(values, initial) || isWeekDirty(days, initialDays);
 
   const save = useMutation({
-    mutationFn: (input: EntryInput) =>
-      entry ? updateEntry(entry.id, input, entry.version) : createEntry(input),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['week'] });
-      onSaved(entry ? 'Entry updated.' : 'Entry saved.');
+    mutationFn: (request: SaveRequest): Promise<unknown> => {
+      if (request.kind === 'week') return createEntriesBatch(request.inputs);
+      return entry
+        ? updateEntry(entry.id, request.input, entry.version)
+        : createEntry(request.input);
     },
-    onError: (error) => {
+    onSuccess: async (_result, request) => {
+      await queryClient.invalidateQueries({ queryKey: ['week'] });
+      if (request.kind === 'week') {
+        const total = sumHours(request.inputs.map((i) => i.hours));
+        onSaved(`${request.inputs.length} entries saved (${total} hours).`);
+      } else {
+        onSaved(entry ? 'Entry updated.' : 'Entry saved.');
+      }
+    },
+    onError: (error, request) => {
       if (error instanceof ApiError && error.status === 422) {
         const known = new Set<string>(FIELD_ORDER);
         const mapped: FieldErrors = {};
+        const perDay: Record<string, string> = {};
         const other: string[] = [];
         for (const [field, message] of Object.entries(error.fieldErrors)) {
-          if (known.has(field)) mapped[field as FieldName] = message;
+          // Batch errors arrive as "entries.<index>.<field>"; map the index back to its day.
+          const batch = /^entries\.(\d+)\.(\w+)$/.exec(field);
+          const name = batch ? (batch[2] as string) : field;
+          const date =
+            batch && request.kind === 'week' ? request.dates[Number(batch[1])] : undefined;
+          if (date && (name === 'hours' || name === 'work_date')) perDay[date] ??= message;
+          else if (known.has(name)) mapped[name as FieldName] ??= message;
           else other.push(message);
         }
         setErrors(mapped);
+        setDayErrors(perDay);
         setFormError(other.length ? other.join(' ') : null);
       } else {
         setErrors({});
+        setDayErrors({});
         setFormError(error instanceof ApiError ? error.message : 'Could not save the entry.');
         // The week may have changed underneath us (e.g. it was submitted); show current state.
         if (error instanceof ApiError && error.status === 409) {
@@ -170,6 +209,18 @@ export function TimeEntryFormPanel({
     setErrors((current) => ({ ...current, [name]: undefined }));
   }
 
+  function setDay(date: string, patch: Partial<Pick<WeekDay, 'enabled' | 'hours'>>) {
+    setDays((current) => current.map((d) => (d.date === date ? { ...d, ...patch } : d)));
+    setDayErrors(({ [date]: _removed, ...rest }) => rest);
+  }
+
+  function changeMode(next: EntryMode) {
+    setMode(next);
+    setErrors({});
+    setDayErrors({});
+    setFormError(null);
+  }
+
   function requestClose() {
     if (save.isPending) return;
     if (dirty) setConfirmDiscard(true);
@@ -179,31 +230,55 @@ export function TimeEntryFormPanel({
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (save.isPending) return;
-    const found = validateEntry(values, {
+    const context = {
       weekStart: week.week_start_date,
       weekEnd: week.week_end_date,
       maxHours,
       descriptionMax,
       projectHasTasks,
-    });
+    };
+    const shared = {
+      earning_code_id: values.earning_code_id,
+      project_id: values.project_id,
+      task_id: values.task_id || null,
+      description: values.description.trim(),
+    };
+
+    if (weekMode) {
+      const result = validateWeek(values, days, context);
+      setErrors(result.fields);
+      setDayErrors(result.days);
+      setFormError(result.form);
+      if (result.form || Object.keys(result.fields).length || Object.keys(result.days).length) {
+        requestAnimationFrame(() => summaryRef.current?.focus());
+        return;
+      }
+      save.mutate({
+        kind: 'week',
+        dates: result.entries.map((e) => e.date),
+        inputs: result.entries.map((e) => ({ ...shared, work_date: e.date, hours: e.hours })),
+      });
+      return;
+    }
+
+    const found = validateEntry(values, context);
     setFormError(null);
+    setDayErrors({});
     setErrors(found);
     if (Object.keys(found).length > 0) {
       requestAnimationFrame(() => summaryRef.current?.focus());
       return;
     }
     save.mutate({
-      work_date: values.work_date,
-      hours: values.hours.trim(),
-      earning_code_id: values.earning_code_id,
-      project_id: values.project_id,
-      task_id: values.task_id || null,
-      description: values.description.trim(),
+      kind: 'single',
+      input: { ...shared, work_date: values.work_date, hours: values.hours.trim() },
     });
   }
 
   const errorFields = FIELD_ORDER.filter((name) => errors[name]);
-  const hasErrors = errorFields.length > 0 || formError !== null;
+  const errorDays = Object.keys(dayErrors).sort();
+  const errorCount = errorFields.length + errorDays.length;
+  const hasErrors = errorCount > 0 || formError !== null;
   const describedBy = (name: FieldName, hint?: string) =>
     [errors[name] ? errorId(name) : null, hint].filter(Boolean).join(' ') || undefined;
 
@@ -236,12 +311,12 @@ export function TimeEntryFormPanel({
             {hasErrors ? (
               <div ref={summaryRef} className="error-summary" role="alert" tabIndex={-1}>
                 <h3>
-                  {errorFields.length > 0
-                    ? `Please fix ${errorFields.length} ${errorFields.length === 1 ? 'field' : 'fields'} before saving`
+                  {errorCount > 0
+                    ? `Please fix ${errorCount} ${errorCount === 1 ? 'field' : 'fields'} before saving`
                     : 'The entry could not be saved'}
                 </h3>
                 {formError ? <p>{formError}</p> : null}
-                {errorFields.length > 0 ? (
+                {errorCount > 0 ? (
                   <ul>
                     {errorFields.map((name) => (
                       <li key={name}>
@@ -253,6 +328,19 @@ export function TimeEntryFormPanel({
                           }}
                         >
                           {LABELS[name]}: {errors[name]}
+                        </a>
+                      </li>
+                    ))}
+                    {errorDays.map((date) => (
+                      <li key={date}>
+                        <a
+                          href={`#${weekHoursInputId(uid, date)}`}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            document.getElementById(weekHoursInputId(uid, date))?.focus();
+                          }}
+                        >
+                          {longDate(date)}: {dayErrors[date]}
                         </a>
                       </li>
                     ))}
@@ -277,44 +365,59 @@ export function TimeEntryFormPanel({
               </div>
             ) : null}
 
-            <div className="field">
-              <label htmlFor={fieldId('work_date')}>
-                Date <span className="required">(required)</span>
-              </label>
-              <input
-                id={fieldId('work_date')}
-                type="date"
-                min={week.week_start_date}
-                max={week.week_end_date}
-                value={values.work_date}
-                aria-required="true"
-                aria-invalid={errors.work_date ? 'true' : undefined}
-                aria-describedby={describedBy('work_date')}
-                onChange={(e) => setField('work_date', e.target.value)}
-              />
-              <FieldError id={errorId('work_date')} message={errors.work_date} />
-            </div>
+            {entry === null ? <EntryModeToggle mode={mode} onChange={changeMode} /> : null}
 
-            <div className="field">
-              <label htmlFor={fieldId('hours')}>
-                Hours <span className="required">(required)</span>
-              </label>
-              <input
-                id={fieldId('hours')}
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                value={values.hours}
-                aria-required="true"
-                aria-invalid={errors.hours ? 'true' : undefined}
-                aria-describedby={describedBy('hours', `${uid}-hours-hint`)}
-                onChange={(e) => setField('hours', e.target.value)}
+            {weekMode ? (
+              <WeekHoursGrid
+                idPrefix={uid}
+                days={days}
+                existing={existingHours}
+                errors={dayErrors}
+                maxHours={maxHours}
+                onChange={setDay}
               />
-              <p id={`${uid}-hours-hint`} className="hint">
-                For example 7.5. Up to two decimals, maximum {maxHours.replace(/\.0+$/, '')}.
-              </p>
-              <FieldError id={errorId('hours')} message={errors.hours} />
-            </div>
+            ) : (
+              <>
+                <div className="field">
+                  <label htmlFor={fieldId('work_date')}>
+                    Date <span className="required">(required)</span>
+                  </label>
+                  <input
+                    id={fieldId('work_date')}
+                    type="date"
+                    min={week.week_start_date}
+                    max={week.week_end_date}
+                    value={values.work_date}
+                    aria-required="true"
+                    aria-invalid={errors.work_date ? 'true' : undefined}
+                    aria-describedby={describedBy('work_date')}
+                    onChange={(e) => setField('work_date', e.target.value)}
+                  />
+                  <FieldError id={errorId('work_date')} message={errors.work_date} />
+                </div>
+
+                <div className="field">
+                  <label htmlFor={fieldId('hours')}>
+                    Hours <span className="required">(required)</span>
+                  </label>
+                  <input
+                    id={fieldId('hours')}
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={values.hours}
+                    aria-required="true"
+                    aria-invalid={errors.hours ? 'true' : undefined}
+                    aria-describedby={describedBy('hours', `${uid}-hours-hint`)}
+                    onChange={(e) => setField('hours', e.target.value)}
+                  />
+                  <p id={`${uid}-hours-hint`} className="hint">
+                    For example 7.5. Up to two decimals, maximum {maxHours.replace(/\.0+$/, '')}.
+                  </p>
+                  <FieldError id={errorId('hours')} message={errors.hours} />
+                </div>
+              </>
+            )}
 
             <div className="field">
               <label htmlFor={fieldId('earning_code_id')}>
@@ -439,7 +542,7 @@ export function TimeEntryFormPanel({
               className="btn btn-primary"
               disabled={save.isPending || !referenceReady}
             >
-              {save.isPending ? 'Saving…' : 'Save entry'}
+              {save.isPending ? 'Saving…' : weekMode ? 'Save entries' : 'Save entry'}
             </button>
           </footer>
         </form>

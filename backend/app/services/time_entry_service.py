@@ -23,8 +23,9 @@ from app.core.errors import (
 from app.models import EntryAction, TimeEntry, TimesheetWeek, User
 from app.repositories import reference as reference_repo
 from app.repositories import timesheets as repo
-from app.schemas.time_entry import TimeEntryCreate, TimeEntryUpdate
-from app.services import entry_rules, summary, weeks
+from app.schemas.time_entry import TimeEntryBatchCreate, TimeEntryCreate, TimeEntryUpdate
+from app.schemas.timesheet import TimesheetWeekRead
+from app.services import entry_rules, summary, timesheet_service, weeks
 
 
 def _snapshot(entry: TimeEntry) -> dict[str, object]:
@@ -99,36 +100,32 @@ def _check_scalars(
             errors[field] = message
 
 
-def create_entry(
-    db: Session, user: User, payload: TimeEntryCreate, settings: Settings
-) -> TimeEntry:
+def _new_entry_errors(db: Session, item: TimeEntryCreate, settings: Settings) -> dict[str, str]:
+    """All field problems for one prospective new entry (unprefixed field names)."""
     errors: dict[str, str] = {}
-    _check_scalars(payload.work_date, payload.hours, payload.description, settings, errors)
+    _check_scalars(item.work_date, item.hours, item.description, settings, errors)
     _check_references(
         db,
-        project_id=payload.project_id,
-        task_id=payload.task_id,
-        earning_code_id=payload.earning_code_id,
+        project_id=item.project_id,
+        task_id=item.task_id,
+        earning_code_id=item.earning_code_id,
         existing=None,
         task_rule_applies=True,
         errors=errors,
     )
-    if errors:
-        raise ValidationFailedError(field_errors=errors)
+    return errors
 
-    start = weeks.week_start_for(payload.work_date, settings.week_start_day)
-    week = repo.get_or_create_week_for_update(db, user.id, start, weeks.week_end_for(start))
-    _require_editable(week)
 
+def _insert_entry(db: Session, user: User, week: TimesheetWeek, item: TimeEntryCreate) -> TimeEntry:
     entry = TimeEntry(
         timesheet_week_id=week.id,
         employee_id=user.id,
-        work_date=payload.work_date,
-        hours=payload.hours.quantize(entry_rules.TWO_PLACES),
-        earning_code_id=payload.earning_code_id,
-        project_id=payload.project_id,
-        task_id=payload.task_id,
-        description=payload.description.strip(),
+        work_date=item.work_date,
+        hours=item.hours.quantize(entry_rules.TWO_PLACES),
+        earning_code_id=item.earning_code_id,
+        project_id=item.project_id,
+        task_id=item.task_id,
+        description=item.description.strip(),
     )
     db.add(entry)
     db.flush()
@@ -140,8 +137,82 @@ def create_entry(
         action=EntryAction.CREATED,
         details=_snapshot(entry),
     )
+    return entry
+
+
+def create_entry(
+    db: Session, user: User, payload: TimeEntryCreate, settings: Settings
+) -> TimeEntry:
+    errors = _new_entry_errors(db, payload, settings)
+    if errors:
+        raise ValidationFailedError(field_errors=errors)
+
+    start = weeks.week_start_for(payload.work_date, settings.week_start_day)
+    week = repo.get_or_create_week_for_update(db, user.id, start, weeks.week_end_for(start))
+    _require_editable(week)
+    entry = _insert_entry(db, user, week, payload)
     db.commit()
     return _reload(db, entry.id)
+
+
+def create_entries_batch(
+    db: Session, user: User, payload: TimeEntryBatchCreate, settings: Settings
+) -> tuple[list[TimeEntry], TimesheetWeekRead]:
+    """Week mode: create several dated entries for ONE week, all or nothing.
+
+    Every item is validated first (errors are keyed ``entries.<index>.<field>``); nothing is written
+    unless all items are valid. The week is then locked, checked for editability, and all rows plus
+    their audit events are inserted in a single transaction. Existing entries are never replaced.
+    """
+    errors: dict[str, str] = {}
+    # Shared fields repeat on every item; validate each distinct combination only once.
+    reference_cache: dict[tuple[uuid.UUID, uuid.UUID | None, uuid.UUID], dict[str, str]] = {}
+    item_weeks: list[date | None] = []
+    seen_dates: set[date] = set()
+
+    for index, item in enumerate(payload.entries):
+        ref_key = (item.project_id, item.task_id, item.earning_code_id)
+        if ref_key not in reference_cache:
+            ref_errors: dict[str, str] = {}
+            _check_references(
+                db,
+                project_id=item.project_id,
+                task_id=item.task_id,
+                earning_code_id=item.earning_code_id,
+                existing=None,
+                task_rule_applies=True,
+                errors=ref_errors,
+            )
+            reference_cache[ref_key] = ref_errors
+        item_errors = dict(reference_cache[ref_key])
+        _check_scalars(item.work_date, item.hours, item.description, settings, item_errors)
+
+        week_start = None
+        if "work_date" not in item_errors:
+            week_start = weeks.week_start_for(item.work_date, settings.week_start_day)
+            if item.work_date in seen_dates:
+                item_errors["work_date"] = "Each date can only appear once in a batch."
+            seen_dates.add(item.work_date)
+        item_weeks.append(week_start)
+        for field, message in item_errors.items():
+            errors[f"entries.{index}.{field}"] = message
+
+    # The whole batch belongs to one week: the first valid item defines it.
+    reference_week = next((w for w in item_weeks if w is not None), None)
+    for index, week_start in enumerate(item_weeks):
+        field = f"entries.{index}.work_date"
+        if week_start is not None and week_start != reference_week and field not in errors:
+            errors[field] = "All dates in a batch must be in the same week."
+    if errors or reference_week is None:
+        raise ValidationFailedError(field_errors=errors)
+
+    start = reference_week
+    week = repo.get_or_create_week_for_update(db, user.id, start, weeks.week_end_for(start))
+    _require_editable(week)
+    created = [_insert_entry(db, user, week, item) for item in payload.entries]
+    db.commit()
+    entries = [_reload(db, entry.id) for entry in created]
+    return entries, timesheet_service.get_week_view(db, user, start, settings)
 
 
 def update_entry(

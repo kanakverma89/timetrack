@@ -60,6 +60,14 @@ export const WEEK_KEYS = [
   'hours-limit',
   'focus-trap',
   'description-text',
+  'week-create',
+  'week-atomic',
+  'week-modes',
+  'week-existing',
+  'week-api',
+  'week-a11y',
+  'week-mobile',
+  'week-keyboard',
 ] as const;
 export type WeekKey = (typeof WEEK_KEYS)[number];
 

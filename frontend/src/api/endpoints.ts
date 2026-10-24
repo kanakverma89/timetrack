@@ -1,5 +1,6 @@
 import { apiFetch, ApiError } from './client';
 import type {
+  BatchResult,
   EarningCodeOption,
   EntryInput,
   Meta,
@@ -58,3 +59,7 @@ export const updateEntry = (id: string, input: EntryInput, version: number) =>
 
 export const deleteEntry = (id: string) =>
   apiFetch<void>(`/time-entries/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+/** Week mode: all entries are created in one transaction or none are. */
+export const createEntriesBatch = (entries: EntryInput[]) =>
+  apiFetch<BatchResult>('/time-entries/batch', { method: 'POST', body: { entries } });
