@@ -150,12 +150,17 @@ def list_audit(
         .limit(page_size)
         .offset((page - 1) * page_size)
     ).all()
-    # Audit rows about people hold only an id; the name shown is the person's name *now*, so an
-    # anonymised user reads as "Former employee" everywhere, including in history.
-    user_ids = {e.entity_id for e, _ in rows if e.entity_type is E.USER and e.entity_id}
+    # Audit rows about people hold only ids; the names shown are the people's names *now*, so an
+    # anonymised person reads "Former employee" everywhere, including in history.
+    wanted: set[uuid.UUID] = {
+        e.entity_id for e, _ in rows if e.entity_type is E.USER and e.entity_id
+    }
+    for event, _actor in rows:
+        if event.action is ConfigAction.MEMBERS_CHANGED:
+            wanted |= set(_member_ids(event.details))
     names = (
-        dict(db.execute(select(User.id, User.display_name).where(User.id.in_(user_ids))).all())
-        if user_ids
+        dict(db.execute(select(User.id, User.display_name).where(User.id.in_(wanted))).all())
+        if wanted
         else {}
     )
     return AuditList(
@@ -171,7 +176,7 @@ def list_audit(
                 )
                 or (None if e.entity_type is E.USER else e.details.get("label")),
                 action=e.action,
-                details=e.details,
+                details=_with_member_names(e, names),
             )
             for e, u in rows
         ],
@@ -179,3 +184,36 @@ def list_audit(
         page_size=page_size,
         total=int(total),
     )
+
+
+def _member_ids(details: dict[str, Any]) -> list[uuid.UUID]:
+    changes = details.get("changes") or {}
+    found: list[uuid.UUID] = []
+    for key, side in (("added", "to"), ("removed", "from")):
+        for raw in (changes.get(key) or {}).get(side) or []:
+            try:
+                found.append(uuid.UUID(str(raw)))
+            except ValueError:
+                continue  # rows written before ids were used hold something else; show it as is
+    return found
+
+
+def _with_member_names(event: ConfigAuditEvent, names: dict[uuid.UUID, str]) -> dict[str, Any]:
+    """The stored details with member ids swapped for current names (a copy; the row is kept)."""
+    if event.action is not ConfigAction.MEMBERS_CHANGED:
+        return event.details
+
+    def name(raw: Any) -> str:
+        try:
+            return names.get(uuid.UUID(str(raw)), "Unknown person")
+        except ValueError:
+            return str(raw)
+
+    details = {**event.details}
+    changes = {**(details.get("changes") or {})}
+    for key, side in (("added", "to"), ("removed", "from")):
+        entry = {**(changes.get(key) or {})}
+        entry[side] = sorted(name(raw) for raw in entry.get(side) or [])
+        changes[key] = entry
+    details["changes"] = changes
+    return details

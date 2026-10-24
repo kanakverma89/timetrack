@@ -403,8 +403,25 @@ def test_team_lifecycle_membership_and_audit(admin: TestClient, db: Session) -> 
         for e in audit(db, entity_id=uuid.UUID(team_id))
         if e.action is ConfigAction.MEMBERS_CHANGED
     ]
-    assert change.details["changes"]["added"]["to"] == ["c@example.test"]
-    assert change.details["changes"]["removed"]["from"] == ["a@example.test"]
+    # Stored as ids, never emails (the trail is append-only and must survive anonymisation)...
+    assert change.details["changes"]["added"]["to"] == [str(c.id)]
+    assert change.details["changes"]["removed"]["from"] == [str(a.id)]
+    assert "@example.test" not in str(change.details)
+    # ...and shown with the people's current names.
+    shown = admin.get(f"{A}/audit", params={"entity_id": team_id}).json()["items"]
+    members_event = next(i for i in shown if i["action"] == "MEMBERS_CHANGED")
+    assert members_event["details"]["changes"]["added"]["to"] == [c.display_name]
+    assert members_event["details"]["changes"]["removed"]["from"] == [a.display_name]
+    # A person who is later anonymised reads as "Former employee" in that same history.
+    c.is_active = False
+    db.commit()
+    from app.maintenance import anonymise_user
+
+    anonymise_user(db, c.id)
+    after = admin.get(f"{A}/audit", params={"entity_id": team_id}).json()["items"]
+    event = next(i for i in after if i["action"] == "MEMBERS_CHANGED")
+    assert event["details"]["changes"]["added"]["to"] == ["Former employee"]
+    assert "c@example.test" not in str(after)
 
     assert admin.patch(f"{A}/teams/{team_id}", json={"name": "Core"}).json()["name"] == "Core"
     assert admin.get(f"{A}/teams").json()["items"][0]["member_count"] == 2

@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { canReview, usePendingApprovals } from '../hooks/usePendingApprovals';
 import { useLogout, useSession } from '../hooks/useSession';
 import type { ReactNode } from 'react';
@@ -7,7 +7,9 @@ export function AppShell({ appName, children }: { appName: string; children: Rea
   const { data: user } = useSession();
   const logout = useLogout();
   const navigate = useNavigate();
-  const pending = usePendingApprovals(user?.role);
+  // While a temporary password is pending the API refuses everything else; do not even try.
+  const locked = user?.must_change_password === true;
+  const pending = usePendingApprovals(locked ? undefined : user?.role);
 
   return (
     <div className="shell">
@@ -31,7 +33,7 @@ export function AppShell({ appName, children }: { appName: string; children: Rea
             </svg>
             {appName}
           </span>
-          {user ? (
+          {user && !locked ? (
             <nav className="main-nav" aria-label="Main">
               <NavLink to="/" end>
                 Timesheet
@@ -45,6 +47,8 @@ export function AppShell({ appName, children }: { appName: string; children: Rea
                   Approvals {pending ? <span className="count-badge">{pending}</span> : null}
                 </NavLink>
               ) : null}
+              {canReview(user.role) ? <NavLink to="/reports">Reports</NavLink> : null}
+              {user.role === 'ADMIN' ? <NavLink to="/admin">Admin</NavLink> : null}
             </nav>
           ) : null}
           {user ? (
@@ -53,6 +57,11 @@ export function AppShell({ appName, children }: { appName: string; children: Rea
                 {user.display_name}
                 <span className="muted small"> · {user.role.toLowerCase()}</span>
               </span>
+              {locked ? null : (
+                <Link className="btn btn-link" to="/account/password">
+                  Change password
+                </Link>
+              )}
               <button
                 type="button"
                 className="btn btn-secondary"

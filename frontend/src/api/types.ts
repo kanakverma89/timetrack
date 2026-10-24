@@ -9,6 +9,8 @@ export interface User {
   email: string;
   display_name: string;
   role: Role;
+  /** True after an administrator issued a temporary password: nothing else works until changed. */
+  must_change_password: boolean;
 }
 
 export interface Meta {
@@ -157,4 +159,155 @@ export interface ApprovalDetail {
   employee: PersonRef;
   week: TimesheetWeek;
   history: HistoryItem[];
+}
+
+// ---- administration --------------------------------------------------------------------
+
+export interface PersonRef {
+  id: string;
+  display_name: string;
+  email: string;
+}
+
+export interface Paged<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  display_name: string;
+  role: Role;
+  is_active: boolean;
+  manager: PersonRef | null;
+  report_count: number;
+  must_change_password: boolean;
+  created_at: string;
+}
+
+export interface UserWithTemporaryPassword {
+  user: AdminUser;
+  temporary_password: string;
+}
+
+export interface UserCreateInput {
+  email: string;
+  display_name: string;
+  role: Role;
+  manager_id: string | null;
+}
+
+export type UserUpdateInput = Partial<{
+  display_name: string;
+  role: Role;
+  manager_id: string | null;
+  is_active: boolean;
+}>;
+
+export interface Team {
+  id: string;
+  name: string;
+  member_count: number;
+}
+
+export interface TeamDetail extends Team {
+  members: PersonRef[];
+}
+
+export interface AdminProject {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  task_count: number;
+}
+
+export interface AdminTask {
+  id: string;
+  project_id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+}
+
+export interface AdminEarningCode {
+  id: string;
+  code: string;
+  name: string;
+  classification: Classification;
+  is_active: boolean;
+  entry_count: number;
+}
+
+export interface Policy {
+  max_hours_per_entry: string;
+  max_hours_per_day: string | null;
+  max_hours_per_week: string | null;
+  description_max_length: number;
+  /** "database" when an administrator has overridden the environment defaults. */
+  source: string;
+  updated_at: string | null;
+  updated_by_name: string | null;
+  environment_defaults: Record<string, unknown>;
+}
+
+export type PolicyInput = Omit<
+  Policy,
+  'source' | 'updated_at' | 'updated_by_name' | 'environment_defaults'
+>;
+
+export type ConfigEntity = 'USER' | 'TEAM' | 'PROJECT' | 'TASK' | 'EARNING_CODE' | 'POLICY';
+export type ConfigAction =
+  | 'CREATED'
+  | 'UPDATED'
+  | 'DEACTIVATED'
+  | 'REACTIVATED'
+  | 'DELETED'
+  | 'PASSWORD_RESET'
+  | 'MEMBERS_CHANGED';
+
+export interface AuditItem {
+  id: string;
+  created_at: string;
+  actor: PersonRef;
+  entity_type: ConfigEntity;
+  entity_id: string | null;
+  entity_label: string | null;
+  action: ConfigAction;
+  details: { label?: string; changes?: Record<string, unknown> } & Record<string, unknown>;
+}
+
+// ---- reports ---------------------------------------------------------------------------
+
+export type GroupBy = 'employee' | 'project' | 'earning_code' | 'week';
+
+export interface ReportRow {
+  key: string;
+  label: string;
+  detail: string | null;
+  total_hours: string;
+  capped_hours: string;
+  non_capped_hours: string;
+  entry_count: number;
+  employee_count: number;
+}
+
+export interface ReportTotals {
+  total_hours: string;
+  capped_hours: string;
+  non_capped_hours: string;
+  entry_count: number;
+  employee_count: number;
+}
+
+export interface HoursReport extends Paged<ReportRow> {
+  group_by: GroupBy;
+  date_from: string;
+  date_to: string;
+  statuses: WeekStatus[];
+  totals: ReportTotals;
 }

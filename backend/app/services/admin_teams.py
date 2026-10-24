@@ -156,9 +156,11 @@ def set_members(
             entity_id=team.id,
             action=ConfigAction.MEMBERS_CHANGED,
             label=team.name,
+            # Ids, not emails: the trail is append-only, so it must not hold personal data that a
+            # later anonymisation could not remove. Names are looked up when the trail is read.
             diff={
-                "added": {"from": [], "to": sorted(added_users[u].email for u in to_add)},
-                "removed": {"from": sorted(current[u].email for u in to_remove), "to": []},
+                "added": {"from": [], "to": sorted(str(u) for u in to_add)},
+                "removed": {"from": sorted(str(u) for u in to_remove), "to": []},
             },
         )
     db.commit()
