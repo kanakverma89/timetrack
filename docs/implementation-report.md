@@ -41,7 +41,7 @@ marked "ran" was executed; anything not listed was not run.
 | `npm run build` | succeeds |
 | `npx playwright test` — Chromium, Firefox, WebKit, local | **248 passed, 7 skipped**, identical in two full runs (skips: 3 optional screenshot captures, 4 WebKit keyboard-Tab tests) |
 | `scripts/perf_check.py` (two runs) | every p95 far under 500 ms, including the manager list (14–24 ms) and approve (11–12 ms); see `docs/performance.md` |
-| GitHub Actions on the Phase 6 branch | see the pull-request/branch status below |
+| GitHub Actions on the Phase 6 branch | **all jobs green**: backend on Python 3.12 and 3.14, frontend on Node 22, 24 and 26, and the E2E job (full Playwright suite on three browsers; about 10 minutes on the shared runner) |
 
 Mutation checks for Phase 6 (change the code, confirm a test fails): removing the scope check, the
 self-review check, the SUBMITTED-only check, the rejection-reason requirement, the row lock, the
