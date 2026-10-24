@@ -68,6 +68,7 @@ class TimesheetWeekRead(BaseModel):
     submitted_at: datetime | None
     reviewed_at: datetime | None
     review_comment: str | None
+    reviewed_by_name: str | None = None
     is_editable: bool
     summary: WeekSummaryRead
     daily_totals: list[DailyTotalRead]

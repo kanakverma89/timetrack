@@ -60,6 +60,7 @@ def get_week_view(
         submitted_at=week.submitted_at if week else None,
         reviewed_at=week.reviewed_at if week else None,
         review_comment=week.review_comment if week else None,
+        reviewed_by_name=_reviewer_name(db, week),
         is_editable=status in summary.EDITABLE_STATUSES,
         summary=WeekSummaryRead(
             total_hours=s.total_hours,
@@ -71,3 +72,10 @@ def get_week_view(
         daily_totals=[DailyTotalRead(date=d, hours=h) for d, h in totals],
         entries=[TimeEntryRead.model_validate(e) for e in entries_sorted],
     )
+
+
+def _reviewer_name(db: Session, week: TimesheetWeek | None) -> str | None:
+    if week is None or week.reviewed_by is None:
+        return None
+    reviewer = db.get(User, week.reviewed_by)
+    return reviewer.display_name if reviewer else None

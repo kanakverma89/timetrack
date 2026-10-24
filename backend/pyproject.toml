@@ -45,7 +45,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "S"]
 ignore = ["B008"]  # FastAPI Depends() in defaults is idiomatic
 
 [tool.ruff.lint.per-file-ignores]
-"app/tests/*" = ["S101", "S105", "S106"]
+"app/tests/*" = ["S101", "S105", "S106", "S608"]  # S608: table names in tests are constants
 "scripts/*" = ["S101"]
 "scripts/perf_check.py" = ["S311"]  # random is used for synthetic data, not security
 
