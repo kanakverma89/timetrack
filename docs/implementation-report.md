@@ -68,8 +68,11 @@ task id hidden by a `<select>`; a redundant double-submit guard).
   `setup-python@v5`) target the deprecated Node 20 runtime, and `ubuntu-latest` is migrating to
   Ubuntu 26. The workflow should be updated to newer action versions.
 - No Dockerfiles for backend/frontend; Compose provides only PostgreSQL.
-- Not measured: performance targets (spec §4.2), real mobile devices, screen-reader behaviour
-  (axe-core + keyboard tests only), browsers other than the three Playwright engines.
+- Performance targets (spec §4.2) were measured on one machine (`docs/performance.md`); production
+  sizing, real network latency and heavier concurrency were not.
+- Not measured/tested: real mobile devices, screen-reader behaviour (axe-core + keyboard tests
+  only — this needs a person using actual assistive technology), other browsers than the three
+  Playwright engines.
 - WebKit Tab-order is not asserted (three tests skipped); activation and focus return are.
 - Login throttling is in-process memory only (single worker).
 - An entry's date cannot be moved into another week (D-28). There is no daily/weekly hour cap and no
