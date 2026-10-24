@@ -64,8 +64,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 20 is the declared minimum; 22 is the current LTS line used for E2E; 24 is current.
-        node: [20, 22, 24]
+        # 22 is the declared minimum line (vitest/jsdom require >=22.12 / >=22.22); 22 also runs E2E.
+        node: [22, 24, 26]
     defaults:
       run:
         working-directory: frontend
