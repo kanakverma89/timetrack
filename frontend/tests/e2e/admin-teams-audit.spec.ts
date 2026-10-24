@@ -152,15 +152,20 @@ test.describe('Audit log', () => {
     await expect(dialog(admin)).toHaveCount(0);
 
     const person = uniqueEmail('audited', testInfo.project.name);
+    // Names are unique per run: the audit shows *current* names, so a repeated name (an earlier
+    // browser's run in the same database) would match someone else's rows.
+    const tag = uniqueName('').trim().replace(/\s+/g, '');
+    const original = `Audrey Audited ${tag}`;
+    const renamed = `Audrey Renamed ${tag}`;
     const created = await createUserViaApi(admin.request, {
       email: person,
-      display_name: 'Audrey Audited',
+      display_name: original,
     });
     expect(
       (
         await admin.request.patch(`${API}/admin/users/${created.id}`, {
           headers: CSRF,
-          data: { display_name: 'Audrey Renamed', role: 'MANAGER' },
+          data: { display_name: renamed, role: 'MANAGER' },
         })
       ).ok(),
     ).toBe(true);
@@ -185,7 +190,7 @@ test.describe('Audit log', () => {
     ).toHaveCount(1);
 
     await admin.goto('/admin/audit?entity=USER');
-    const mine = admin.getByTestId('audit-row').filter({ hasText: 'Audrey Renamed' });
+    const mine = admin.getByTestId('audit-row').filter({ hasText: renamed });
     await expect(mine.filter({ hasText: 'Reset password' })).toHaveCount(1);
     await expect(mine.filter({ hasText: 'Changed' })).toContainText('role: EMPLOYEE → MANAGER');
     await expect(mine.filter({ hasText: 'Changed' })).toContainText('name changed'); // not the names
@@ -195,7 +200,7 @@ test.describe('Audit log', () => {
     const text = await admin.getByTestId('audit-table').innerText();
     expect(text).not.toContain(created.temporaryPassword);
     expect(text).not.toContain(person);
-    expect(text).not.toContain('Audrey Audited'); // the old name was never recorded
+    expect(text).not.toContain(original); // the old name was never recorded
     expect(text).not.toMatch(/[\w.+-]+@example\.test/);
   });
 

@@ -95,11 +95,26 @@ All commands are from the repository root unless noted. Full details live in `RE
 - [x] Approvals list, review page, decision dialogs; decision details on the employee dashboard
 - [x] Backend, component and Playwright coverage (manager + employee workflows)
 
+### Phase 7 — Administration, reporting and hardening
+
+- [x] Users (create with a one-time temporary password, edit, deactivate, reset), forced password change,
+      password policy, last-administrator and self-lockout protection
+- [x] Teams, projects, tasks, earning codes (immutable codes, deactivate not delete, classification
+      locked once used); hour policy stored in the database with audit and restore-defaults
+- [x] Append-only configuration audit with no personal data, and an audit screen
+- [x] Reports (by person, project, earning code, week) scoped like approvals, CSV export without
+      formula injection
+- [x] Security review with an enforced route/role matrix, security headers, bounded login limiter,
+      dependency audit workflow
+- [x] Retention and operator CLI (`purge`, `anonymise-user`, `create-admin`)
+- [x] Production packaging (Dockerfiles, nginx, `compose.prod.yaml`), operations guide, backup/restore
+      drill
+- [x] Backend, component and Playwright coverage; performance check extended
+
 ### Explicitly not yet implemented
 
-Phase 7 (administration/hardening). The schema, auth roles, audit
-tables and notification outbox they need already exist, but there are no endpoints or UI for them
-(except the entry audit table, which is now written by Phase 3).
+SSO/MFA, TLS termination, email/chat delivery of notifications (only the outbox and a logging
+adapter), delegation and multi-level approval, report scheduling, container image scanning.
 
 ## 4. Affected areas
 

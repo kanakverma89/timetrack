@@ -196,7 +196,7 @@ test.describe('Earning codes', () => {
     // Used by an entry: the hint now warns that reclassifying changes existing totals.
     const week = await isolatedWeek(
       employee.request,
-      'adm-catalog',
+      'adm-codes',
       testInfo.project.name,
       testInfo.retry,
     );

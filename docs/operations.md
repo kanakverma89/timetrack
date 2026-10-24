@@ -154,6 +154,14 @@ is a legal question this repository cannot answer: **old backups still contain t
 - There are no metrics, tracing or alerting here. Minimum viable alerts: health check failing, 5xx rate,
   disk usage of the database volume, backup job age.
 
+## Content-Security-Policy
+
+nginx sends `default-src 'self'; script-src 'self'; style-src 'self'; …; frame-ancestors 'none'` for the
+app and the API sends `default-src 'none'`. The app uses no inline scripts or `style` attributes, so the
+policy needs no `unsafe-inline`. If you add analytics, fonts or other third-party resources, extend the
+policy deliberately. WebKit/Safari logs `style-src-attr` console messages for native selects; they are
+harmless (see `docs/security-review.md`, R-9).
+
 ## Known operational limits
 
 - **One API process.** The login throttle and the notification worker are in-process. Scaling the API

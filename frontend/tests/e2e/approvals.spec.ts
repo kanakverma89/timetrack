@@ -552,6 +552,7 @@ test.describe('Approvals accessibility and layout', () => {
     employeePage: employee,
     managerPage: manager,
   }, testInfo) => {
+    test.slow(); // seven axe scans across two pages and two dialogs
     const week = await isolatedWeek(
       employee.request,
       'appr-a11y',

@@ -166,11 +166,17 @@ test.describe('Hours report', () => {
     await expect(manager.getByRole('checkbox', { name: 'Approved' })).toBeDisabled(); // the last ticked box stays on
     await expect(manager.getByText('No hours in this range')).toBeVisible();
 
-    await manager.getByRole('checkbox', { name: 'Waiting for review' }).check();
+    // The ticks live in the address bar, so the box settles a moment after the click: click, then
+    // assert the outcome (check() would demand the flip instantly).
+    const waiting = manager.getByRole('checkbox', { name: 'Waiting for review' });
+    await waiting.click();
+    await expect(waiting).toBeChecked();
     await expect(manager.getByRole('checkbox', { name: 'Approved' })).toBeEnabled();
     await expect(rows(manager)).toHaveCount(1);
     await expect(cell(rows(manager).first(), 'Total hours')).toHaveText('5.00');
-    await manager.getByRole('checkbox', { name: 'Approved' }).uncheck();
+    const approved = manager.getByRole('checkbox', { name: 'Approved' });
+    await approved.click();
+    await expect(approved).not.toBeChecked();
     await expect(rows(manager)).toHaveCount(1); // submitted-only is a valid selection
     await expect(manager).toHaveURL(/status=SUBMITTED/);
     await expect(manager).not.toHaveURL(/status=APPROVED/);
@@ -185,6 +191,7 @@ test.describe('Hours report', () => {
     browser,
     baseURL,
   }, testInfo) => {
+    test.slow(); // five signed-in contexts; Firefox under full parallel load needs the time
     const week = await isolatedWeek(
       employee.request,
       'rep-scope',
@@ -276,6 +283,7 @@ test.describe('Hours report', () => {
     browser,
     baseURL,
   }, testInfo) => {
+    test.slow(); // axe on two pages plus a phone-sized context
     const week = await isolatedWeek(
       employee.request,
       'rep-a11y',

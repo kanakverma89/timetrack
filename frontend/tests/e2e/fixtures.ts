@@ -134,6 +134,7 @@ export const WEEK_KEYS = [
   'rep-a11y',
   'adm-policy',
   'adm-catalog',
+  'adm-codes',
 ] as const;
 export type WeekKey = (typeof WEEK_KEYS)[number];
 

@@ -49,7 +49,7 @@ employee on `/reports/hours`; exempting one path from the CSRF check failed four
 | S-4 | A user with a temporary password could otherwise use the whole API before changing it | Medium | **Fixed**: every route except `me`, `change-password` and `logout` answers 403 until the password is changed (tested for all three roles on every route in the matrix other than the public and exempt ones; widening the exemption list by one path made it fail) |
 | S-5 | Changing the password with a wrong *current* password returning 401 would look like an expired session and sign the user out | Low | **Fixed**: it is a 422 field error; other sessions are revoked on success |
 | S-6 | CSV export of free text allows spreadsheet formula injection (`=cmd|…`) | Medium | **Fixed**: cells starting with `= + - @ TAB CR` are prefixed with a quote; the export contains no descriptions in any case |
-| S-7 | No `Content-Security-Policy` / `Permissions-Policy` / HSTS | Low | **Fixed**: API sends `default-src 'none'`; nginx sends a same-origin CSP for the app; HSTS when cookies are `Secure`. Verified on the running containers (one CSP header, no duplicates) |
+| S-7 | No `Content-Security-Policy` / `Permissions-Policy` / HSTS | Low | **Fixed**: API sends `default-src 'none'`; nginx sends a same-origin CSP for the app; HSTS when cookies are `Secure`. Verified on the running containers: one CSP header, no duplicates, and the real app loaded through nginx in Chromium, Firefox and WebKit — sign-in, forced password change and 14 screens/dialogs (timesheet, entry panel, every admin page, user/team dialogs, delete confirmation, reports, approvals) — with **zero CSP violations in Chromium and Firefox**. WebKit reports `style-src-attr` for native `<select>` elements, see R-9 |
 | S-8 | Password rules: names/emails could be smuggled in with punctuation (`ma.ria`) | Low | **Fixed**: comparison ignores punctuation and case |
 | S-9 | Dependencies | — | `pip-audit` and `npm audit`: **no known vulnerabilities** on 2026-10-24 (including dev dependencies). A scheduled workflow repeats this weekly |
 
@@ -85,3 +85,14 @@ review, not by an exploit in a deployed system.
   management, network policy, and anything in a real deployment that differs from `compose.prod.yaml`.
 - **R-8 Screen-reader and assistive-technology behaviour** is not a security matter but remains
   unverified by a person using real assistive technology.
+- **R-9 WebKit CSP reports for native `<select>`.** Under the production CSP (`style-src 'self'`), WebKit logs
+  `style-src-attr` violations for form controls with no author styles at all (reproduced on a bare page with
+  a static `<select>`; Chromium and Firefox are silent). In the real app the select rendered pixel-identically
+  with and without the CSP and selecting a value worked, so this is console noise, not a defect, and
+  loosening `style-src-attr` did not silence it. No `report-uri` is configured, so nothing is collected. The
+  modal scroll lock was changed from `body.style.overflow` to a CSS class (`modal-open`) while investigating;
+  that was *not* the cause but is kept as the stricter-CSP-friendly form.
+- **R-10 The CSP was exercised against the real nginx container only with the API in test mode** (a
+  production-mode API refuses plain-HTTP sign-in from a browser: `Secure` cookie, `https://` origins only), so
+  authenticated screens were checked with the same web image and nginx configuration but not the production
+  API settings.

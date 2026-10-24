@@ -1,12 +1,12 @@
 # Data model
 
 Source of truth: `backend/app/models/` and migration `backend/alembic/versions/0001_initial_schema.py`
-(`alembic check` confirms they match; revisions `0001` initial schema, `0002` time-entry audit events, `0003` idempotency keys, `0004` append-only audit triggers). All primary keys are UUIDs (`gen_random_uuid()` default);
+(`alembic check` confirms they match; revisions `0001` initial schema, `0002` time-entry audit events, `0003` idempotency keys, `0004` append-only audit triggers, `0005` administration: policy, configuration audit, password-change flag). All primary keys are UUIDs (`gen_random_uuid()` default);
 audit timestamps are `timestamptz`.
 
 | Table | Purpose | Notable constraints |
 | --- | --- | --- |
-| `users` | Accounts (`manager_id` is what grants review rights) | unique lowercase `email` (CHECK), `role` ∈ EMPLOYEE/MANAGER/ADMIN (CHECK), nullable `manager_id` (cannot be self), `password_hash` nullable (reserved for external identity) |
+| `users` | Accounts (`manager_id` is what grants review rights) | unique lowercase `email` (CHECK), `role` ∈ EMPLOYEE/MANAGER/ADMIN (CHECK), nullable `manager_id` (cannot be self), `password_hash` nullable (reserved for external identity; `NULL` after anonymisation), `must_change_password` (a temporary password is pending), `password_changed_at` |
 | `auth_sessions` | Server-side login sessions | unique `token_digest` (HMAC of the cookie token), `expires_at`, `revoked_at`; cascades with the user |
 | `teams`, `team_memberships` | Team structure (used by Phase 6) | membership PK `(team_id, user_id)` |
 | `projects` | Billable/organisational projects | unique `code`, `is_active` (soft-deactivate) |
@@ -17,6 +17,8 @@ audit timestamps are `timestamptz`.
 | `time_entry_events` | Append-only audit of entry CREATED/UPDATED/DELETED | `details` JSONB holds ids, date, hours and changed fields only (never the description); `time_entry_id` is deliberately not a foreign key; FKs to week/actor are `RESTRICT` |
 | `approval_events` | Append-only audit of SUBMITTED/APPROVED/REJECTED/WITHDRAWN (a SUBMITTED row is written on every submission, with the optional comment) | FKs are `RESTRICT`; no update/delete paths exist |
 | `notification_outbox` | Pending notifications; one `TIMESHEET_SUBMITTED` row per submission | JSONB `payload` (ids and totals only), `status` PENDING/PROCESSING/SENT/FAILED, `attempt_count`, `last_error` |
+| `policy_settings` | The administrator's hour/description policy; **one row** that overrides the environment defaults | CHECK `id = 1`; entry in (0, 24]; day and week optional (≤ 24 / ≤ 168); week ≥ day; description 1–256; `updated_by` FK to `users` |
+| `config_audit_events` | Append-only audit of every administrator change (users, teams, projects, tasks, earning codes, policy) | `actor_id` FK `RESTRICT`; `entity_type`, `action` CHECKed enums; `details` JSONB = a label plus `{field: {from, to}}`; **ids only, never names, emails or passwords** (D-67) |
 | `idempotency_keys` | Client keys already honoured (submission) | unique `(user_id, scope, key)`; `aggregate_id` = the week it acted on; cascades with the user |
 
 Indexes follow spec §7.11: `timesheet_weeks(employee_id, week_start_date)`,
@@ -33,7 +35,7 @@ configured week-start day, and the configurable per-entry maximum below 24.
 
 ## Append-only audit tables
 
-`approval_events` and `time_entry_events` carry a `BEFORE UPDATE OR DELETE` trigger
-(`prevent_audit_mutation`, migration `0004`) that raises `restrict_violation`. Rows can be inserted and
+`approval_events`, `time_entry_events` and `config_audit_events` carry a `BEFORE UPDATE OR DELETE` trigger
+(`prevent_audit_mutation`, migrations `0004` and `0005`) that raises `restrict_violation`. Rows can be inserted and
 read but never changed or removed, whatever application code does. `TRUNCATE` is not blocked so
 disposable test databases can still be reset.

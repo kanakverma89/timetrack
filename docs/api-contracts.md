@@ -1,4 +1,4 @@
-# API contracts (implemented in Phases 1–6)
+# API contracts (implemented in Phases 1–7)
 
 Base path `/api/v1`. JSON. Dates `YYYY-MM-DD`. Hours are decimal **strings** with two places.
 Interactive docs: `/api/v1/docs` when enabled (development/test by default). Unsafe methods
@@ -15,8 +15,8 @@ Every error uses one envelope (validation, auth, unknown routes, 5xx):
 | Status | `code` | When |
 | --- | --- | --- |
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | no/expired/revoked session; wrong credentials (same message for unknown user) |
-| 403 | `FORBIDDEN` | missing CSRF header, disallowed `Origin`, insufficient role (every `/approvals` route for employees); trying to review your own week |
-| 409 | `WEEK_NOT_EDITABLE` / `STALE_ENTRY` / `INVALID_TRANSITION` | the week is submitted/approved; the entry's `version` no longer matches; the week is not DRAFT/REJECTED so it cannot be submitted |
+| 403 | `FORBIDDEN` / `PASSWORD_CHANGE_REQUIRED` | missing CSRF header, disallowed `Origin`, insufficient role (every `/approvals`, `/reports` route for employees; every `/admin` route for non-admins); trying to review your own week; a temporary password has not been replaced yet (every route except `me`, `change-password`, `logout`) |
+| 409 | `WEEK_NOT_EDITABLE` / `STALE_ENTRY` / `INVALID_TRANSITION` / `CONFLICT` / `LAST_ADMIN` / `CLASSIFICATION_LOCKED` | the week is submitted/approved; the entry's `version` no longer matches; the week is not DRAFT/REJECTED so it cannot be submitted; a duplicate email/code/name (also carries `field_errors`); removing the last active administrator; reclassifying an earning code that entries use |
 | 404 | `NOT_FOUND` | unknown route or resource; **also another employee's entry** (indistinguishable from missing) |
 | 405 | `METHOD_NOT_ALLOWED` | |
 | 422 | `VALIDATION_ERROR` / `BUSINESS_RULE_VIOLATION` | malformed input; week date outside 1970–2100 / a well-formed request the business rules refuse (submission) |
@@ -34,7 +34,8 @@ The `X-Request-ID` response header equals `error.request_id`; a valid inbound `X
 | `GET /health/ready` | none | Database reachable |
 | `POST /auth/login` `{email, password}` | none | Returns the user; sets `HttpOnly` `SameSite=Lax` session cookie (`Secure` in production) |
 | `POST /auth/logout` | none | 204; revokes the session server-side |
-| `GET /auth/me` | session | `{id, email, display_name, role}` |
+| `GET /auth/me` | session | `{id, email, display_name, role, must_change_password}` |
+| `POST /auth/change-password` `{current_password, new_password}` | session + CSRF | 204; revokes the caller's *other* sessions; 422 field errors (`current_password`, `new_password`); 429 when throttled |
 | `GET /meta` | session | `{app_name, business_timezone, week_start_day, today, current_week_start_date, max_hours_per_entry, description_max_length}` — `today` is the business date computed on the server |
 | `GET /projects?active=true&search=` | session | `{items:[{id, code, name, is_active}]}`; `search` matches code or name, case-insensitive, ≤ 100 chars, wildcards literal |
 | `GET /projects/{id}/tasks?active=true` | session | `{items:[{id, project_id, code, name, is_active}]}`; 404 for unknown project |
@@ -224,6 +225,44 @@ the `APPROVED`/`REJECTED` event with the actor and comment; enqueues `TIMESHEET_
 `reviewed_by_name` and the reason; a rejected week is editable and can be resubmitted, an approved one
 is final.
 
+## Administration (Phase 7) — administrators only
+
+Every route below is under `/admin`; anyone who is not an administrator gets 403 and an unauthenticated
+caller 401 (enforced for every route by `test_security_regression.py`). Every change writes an audit row
+in the same transaction. Lists are paginated (`page` ≥ 1, `page_size` 1–100, default 20) and return
+`{items, page, page_size, total}`.
+
+| Method & path | Notes |
+| --- | --- |
+| `GET /admin/users?search=&role=&active=&managers_only=` | `{id, email, display_name, role, is_active, manager:{id,display_name,email}\|null, report_count, must_change_password, created_at}`; `search` matches name or email |
+| `POST /admin/users` `{email, display_name, role, manager_id?}` | 201 `{user, temporary_password}`; **the password is shown only in this response**; 409 `CONFLICT` for a taken email (`field_errors.email`) |
+| `GET /admin/users/{id}` | one user; 404 if unknown |
+| `PATCH /admin/users/{id}` `{display_name?, role?, manager_id?, is_active?}` | `manager_id: null` removes the manager. 422 with `field_errors` for: own role/deactivation, an inactive or non-manager manager, someone who would still have active reports (`is_active`/`role`); 409 `LAST_ADMIN` |
+| `POST /admin/users/{id}/reset-password` | `{temporary_password}` once; the person is signed out everywhere and must change it; 422 for your own account |
+| `GET/POST /admin/teams`, `GET/PATCH/DELETE /admin/teams/{id}` | `{id, name, member_count}` (+ `members:[{id,display_name,email}]` on one team); names unique ignoring case |
+| `PUT /admin/teams/{id}/members` `{user_ids:[…]}` | replaces the member set; only existing, active people can be added (422 `user_ids`) |
+| `GET /admin/projects?search=&active=` / `POST` / `GET,PATCH /admin/projects/{id}` | `{id, code, name, description, is_active, task_count}`; `POST` `{code, name, description?}` (code normalised to capitals, then immutable) |
+| `GET,POST /admin/projects/{id}/tasks`, `PATCH /admin/tasks/{id}` | `{id, project_id, code, name, is_active}`; a project with an active task requires one on new entries |
+| `GET,POST /admin/earning-codes`, `PATCH /admin/earning-codes/{id}` | `{id, code, name, classification, is_active, entry_count}`; 409 `CLASSIFICATION_LOCKED` when `entry_count > 0` and the classification changes |
+| `GET /admin/policy` | `{max_hours_per_entry, max_hours_per_day\|null, max_hours_per_week\|null, description_max_length, source: "environment"\|"database", updated_at, updated_by_name, environment_defaults}` |
+| `PUT /admin/policy` | same four values; 422 per field (`entry ≤ 24`, `entry ≤ daily limit`, `daily ≤ weekly`, ≤ 2 decimals). `DELETE` removes the override (back to the environment) |
+| `GET /admin/audit?entity_type=&entity_id=` | newest first: `{id, created_at, actor, entity_type, entity_id, entity_label, action, details}`. `entity_label` and member lists are **current names** resolved at read time; stored rows hold ids only |
+
+## Reports (Phase 7) — managers and administrators
+
+`GET /reports/hours?date_from=&date_to=&group_by=employee|project|earning_code|week&status=…&employee_id=&project_id=&page=&page_size=`
+
+Scope: a manager's assigned reports, an administrator everyone; employees 403. `status` may repeat
+(`APPROVED` by default; `SUBMITTED`, `REJECTED` allowed; **drafts are never included**). `date_from ≤
+date_to`, at most 366 days (422 otherwise). Response: `{group_by, date_from, date_to, statuses, items:[{key,
+label, detail, total_hours, capped_hours, non_capped_hours, entry_count, employee_count}], totals, page,
+page_size, total}`; `totals` cover **all** rows, not the page. Hours are exact decimal strings.
+
+`GET /reports/hours.csv` takes the same filters (no paging, at most 100 000 rows) and returns
+`text/csv` with columns `Group, Detail, Total hours, Capped hours, Non-capped hours, Entries, People` and a
+final `Total` row. Cells that begin with `=`, `+`, `-`, `@`, TAB or CR are prefixed with `'`. Each export is
+logged with who, grouping and dates (never contents).
+
 ## Not yet implemented
 
-Administration endpoints (users, teams, projects, tasks, earning codes, policy) — Phase 7.
+Delegation of approvals, multi-level approval, in-app notification inbox, SSO/MFA, report scheduling.

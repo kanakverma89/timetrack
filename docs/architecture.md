@@ -69,7 +69,7 @@ audit data.
 - Vite + React 19 + TypeScript (strict). React Router for `/login` and `/` (dashboard).
 - TanStack Query for server state (caching, retry, de-duplication). No global client store.
 - All HTTP goes through `src/api/client.ts`; components never call `fetch`.
-- Feature folders: `features/auth`, `features/dashboard`. Shared UI in `components/`.
+- Feature folders: `features/auth`, `dashboard`, `time-entries`, `approvals`, `admin`, `reports`. Shared UI in `components/` (`Modal`, `ConfirmDialog`, `FormDialog`, `Fields`, `Pager`).
 - Hours are handled as **decimal strings** from the API and never summed in floating point on
   the client; the server is the single source of aggregate numbers.
 - Plain CSS with design tokens (`styles/tokens.css`); no component library (see D-9).
@@ -81,6 +81,17 @@ audit data.
 the assigned manager or an admin, never oneself, never by team membership. Review routes are mounted
 behind `require_roles(MANAGER, ADMIN)`; the service then applies the policy per week. The SQL used to
 filter lists is checked against the Python policy by a parity test so the two cannot drift.
+
+## Administration, policy and reports (Phase 7)
+
+`api/v1/admin/*` is one router with the administrator guard on the whole router
+(`require_roles(ADMIN)`); services (`admin_users`, `admin_teams`, `admin_catalog`, `admin_policy`) write
+the audit row (`config_audit.record`) in the caller's transaction. `services/policy.py` is the one place
+that answers "what are the limits right now": a one-row `policy_settings` table overrides the environment,
+and entry, submission and `/meta` all read it. `services/reports.py` aggregates in SQL with the same scope
+as `review_policy` and is shared by the JSON and CSV endpoints. Operator tasks live in
+`app/maintenance.py` (called by `scripts/maintain.py`) so they are tested like any other code.
+`test_security_regression.py` holds the route/role access matrix and fails when a route is missing from it.
 
 ## Submission and notifications
 
