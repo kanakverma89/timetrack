@@ -1,5 +1,7 @@
 import { apiFetch, ApiError } from './client';
 import type {
+  ApprovalDetail,
+  ApprovalList,
   BatchResult,
   EarningCodeOption,
   EntryInput,
@@ -9,6 +11,7 @@ import type {
   TimeEntry,
   TimesheetWeek,
   User,
+  WeekStatus,
 } from './types';
 
 export async function login(email: string, password: string): Promise<User> {
@@ -72,5 +75,36 @@ export const submitWeek = (weekStart: string, comment: string | null, idempotenc
   apiFetch<TimesheetWeek>(`/timesheets/weeks/${encodeURIComponent(weekStart)}/submit`, {
     method: 'POST',
     body: { comment },
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+
+export interface ApprovalQuery {
+  status: Exclude<WeekStatus, 'DRAFT'>;
+  page: number;
+  pageSize: number;
+  /** Any date inside the week to filter by; omitted for all weeks. */
+  week?: string;
+}
+
+export const fetchApprovals = ({ status, page, pageSize, week }: ApprovalQuery) => {
+  const params = new URLSearchParams({ status, page: String(page), page_size: String(pageSize) });
+  if (week) params.set('week_start_date', week);
+  return apiFetch<ApprovalList>(`/approvals?${params.toString()}`);
+};
+
+export const fetchApproval = (weekId: string) =>
+  apiFetch<ApprovalDetail>(`/approvals/${encodeURIComponent(weekId)}`);
+
+export const approveWeek = (weekId: string, comment: string | null, idempotencyKey: string) =>
+  apiFetch<ApprovalDetail>(`/approvals/${encodeURIComponent(weekId)}/approve`, {
+    method: 'POST',
+    body: { comment },
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+
+export const rejectWeek = (weekId: string, reason: string, idempotencyKey: string) =>
+  apiFetch<ApprovalDetail>(`/approvals/${encodeURIComponent(weekId)}/reject`, {
+    method: 'POST',
+    body: { comment: reason },
     headers: { 'Idempotency-Key': idempotencyKey },
   });

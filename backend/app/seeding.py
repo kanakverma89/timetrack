@@ -41,6 +41,8 @@ def sid(*parts: str) -> uuid.UUID:
 EMPLOYEE_EMAIL = "employee@example.test"
 EMPLOYEE2_EMAIL = "employee2@example.test"
 MANAGER_EMAIL = "manager@example.test"
+MANAGER2_EMAIL = "manager2@example.test"
+EMPLOYEE3_EMAIL = "employee3@example.test"
 ADMIN_EMAIL = "admin@example.test"
 
 
@@ -111,6 +113,16 @@ EMPLOYEE_WEEKS: dict[str, tuple[WeekStatus, list[SampleEntry]]] = {
     ),
 }
 
+EMPLOYEE3_WEEKS: dict[str, tuple[WeekStatus, list[SampleEntry]]] = {
+    "2026-10-05": (
+        WeekStatus.SUBMITTED,
+        [
+            SampleEntry(_d(f"2026-10-{day}"), "8.00", "REG", "PRJ-003", None, "Operations support")
+            for day in ("05", "06", "07")
+        ],
+    ),
+}
+
 EMPLOYEE2_WEEKS: dict[str, tuple[WeekStatus, list[SampleEntry]]] = {
     "2026-10-19": (
         WeekStatus.DRAFT,
@@ -167,11 +179,15 @@ def _upsert_reference(db: Session) -> None:
 def _upsert_users(db: Session, password: str) -> None:
     pw = hash_password(password)
     manager_id = sid("user", MANAGER_EMAIL)
+    manager2_id = sid("user", MANAGER2_EMAIL)
     users = [
         (MANAGER_EMAIL, "Morgan Manager", Role.MANAGER, None),
+        (MANAGER2_EMAIL, "Riley Manager", Role.MANAGER, None),
         (ADMIN_EMAIL, "Jordan Admin", Role.ADMIN, None),
         (EMPLOYEE_EMAIL, "Alex Employee", Role.EMPLOYEE, manager_id),
         (EMPLOYEE2_EMAIL, "Sam Employee", Role.EMPLOYEE, manager_id),
+        # Reports to the *other* manager: lets tests prove managers only see their own reports.
+        (EMPLOYEE3_EMAIL, "Taylor Employee", Role.EMPLOYEE, manager2_id),
     ]
     for email, name, role, mgr in users:
         db.merge(
@@ -190,14 +206,21 @@ def _upsert_users(db: Session, password: str) -> None:
     db.flush()
     for email in (MANAGER_EMAIL, EMPLOYEE_EMAIL, EMPLOYEE2_EMAIL):
         db.merge(TeamMembership(team_id=sid("team", "platform"), user_id=sid("user", email)))
+    db.merge(Team(id=sid("team", "operations"), name="Operations Team"))
+    db.flush()
+    for email in (MANAGER2_EMAIL, EMPLOYEE3_EMAIL):
+        db.merge(TeamMembership(team_id=sid("team", "operations"), user_id=sid("user", email)))
     db.flush()
 
 
 def _upsert_weeks(
-    db: Session, email: str, weeks: dict[str, tuple[WeekStatus, list[SampleEntry]]]
+    db: Session,
+    email: str,
+    weeks: dict[str, tuple[WeekStatus, list[SampleEntry]]],
+    manager_email: str = MANAGER_EMAIL,
 ) -> None:
     employee_id = sid("user", email)
-    manager_id = sid("user", MANAGER_EMAIL)
+    manager_id = sid("user", manager_email)
     for start_iso, (status, entries) in weeks.items():
         start = date.fromisoformat(start_iso)
         week_id = sid("week", email, start_iso)
@@ -267,4 +290,5 @@ def seed(db: Session, *, password: str, sample_entries: bool) -> None:
     if sample_entries:
         _upsert_weeks(db, EMPLOYEE_EMAIL, EMPLOYEE_WEEKS)
         _upsert_weeks(db, EMPLOYEE2_EMAIL, EMPLOYEE2_WEEKS)
+        _upsert_weeks(db, EMPLOYEE3_EMAIL, EMPLOYEE3_WEEKS, MANAGER2_EMAIL)
     db.commit()

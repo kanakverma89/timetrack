@@ -1,12 +1,12 @@
 # Data model
 
 Source of truth: `backend/app/models/` and migration `backend/alembic/versions/0001_initial_schema.py`
-(`alembic check` confirms they match; revisions `0001` initial schema, `0002` time-entry audit events, `0003` idempotency keys). All primary keys are UUIDs (`gen_random_uuid()` default);
+(`alembic check` confirms they match; revisions `0001` initial schema, `0002` time-entry audit events, `0003` idempotency keys, `0004` append-only audit triggers). All primary keys are UUIDs (`gen_random_uuid()` default);
 audit timestamps are `timestamptz`.
 
 | Table | Purpose | Notable constraints |
 | --- | --- | --- |
-| `users` | Accounts | unique lowercase `email` (CHECK), `role` ∈ EMPLOYEE/MANAGER/ADMIN (CHECK), nullable `manager_id` (cannot be self), `password_hash` nullable (reserved for external identity) |
+| `users` | Accounts (`manager_id` is what grants review rights) | unique lowercase `email` (CHECK), `role` ∈ EMPLOYEE/MANAGER/ADMIN (CHECK), nullable `manager_id` (cannot be self), `password_hash` nullable (reserved for external identity) |
 | `auth_sessions` | Server-side login sessions | unique `token_digest` (HMAC of the cookie token), `expires_at`, `revoked_at`; cascades with the user |
 | `teams`, `team_memberships` | Team structure (used by Phase 6) | membership PK `(team_id, user_id)` |
 | `projects` | Billable/organisational projects | unique `code`, `is_active` (soft-deactivate) |
@@ -30,3 +30,10 @@ keeps migrations simple.
 **Not enforced by the database** (enforced in `services/time_entry_service.py`): `work_date` lies
 inside its week (an entry's date can only change within its week), the week start matches the
 configured week-start day, and the configurable per-entry maximum below 24.
+
+## Append-only audit tables
+
+`approval_events` and `time_entry_events` carry a `BEFORE UPDATE OR DELETE` trigger
+(`prevent_audit_mutation`, migration `0004`) that raises `restrict_violation`. Rows can be inserted and
+read but never changed or removed, whatever application code does. `TRUNCATE` is not blocked so
+disposable test databases can still be reset.

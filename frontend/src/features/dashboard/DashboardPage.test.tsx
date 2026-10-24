@@ -162,6 +162,51 @@ describe('Dashboard', () => {
     expect(screen.queryByText(/read-only/)).not.toBeInTheDocument();
   });
 
+  it('tells the employee who rejected the week, when, and why', async () => {
+    mockApi({
+      ...signedIn,
+      'GET /timesheets/weeks/2026-10-19': () => ({
+        body: {
+          ...populatedWeek('2026-10-19'),
+          status: 'REJECTED',
+          review_comment: 'Please correct the hours recorded for Wednesday.',
+          reviewed_by_name: 'Morgan Manager',
+          reviewed_at: '2026-10-25T09:00:00Z',
+        },
+      }),
+    });
+    renderApp('/');
+    const banner = await screen.findByText(/This week was rejected\./);
+    const text = banner.parentElement?.textContent?.replace(/\s/g, ' ') ?? '';
+    expect(text).toContain('Reason: Please correct the hours recorded for Wednesday.');
+    expect(text).toContain('Reviewed by Morgan Manager, Oct 25, 2026, 2:30 PM.'); // business timezone
+    expect(screen.getByRole('button', { name: 'Resubmit week' })).toBeInTheDocument();
+  });
+
+  it('shows an approved week as final, with who approved it and any comment', async () => {
+    mockApi({
+      ...signedIn,
+      'GET /timesheets/weeks/2026-10-19': () => ({
+        body: {
+          ...populatedWeek('2026-10-19'),
+          status: 'APPROVED',
+          is_editable: false,
+          review_comment: 'Well done',
+          reviewed_by_name: 'Morgan Manager',
+          reviewed_at: '2026-10-25T09:00:00Z',
+        },
+      }),
+    });
+    renderApp('/');
+    const banner = await screen.findByText(/This week is approved and read-only\./);
+    const text = banner.textContent?.replace(/\s/g, ' ') ?? '';
+    expect(text).toContain('Reviewed by Morgan Manager, Oct 25, 2026, 2:30 PM.');
+    expect(text).toContain('Comment: Well done');
+    expect(
+      screen.queryByRole('button', { name: /submit week|resubmit week|Add entry/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it('marks a submitted week as read-only and reports zero draft entries', async () => {
     mockApi({
       ...signedIn,

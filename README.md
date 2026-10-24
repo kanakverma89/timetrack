@@ -5,8 +5,8 @@ FastAPI backend, PostgreSQL, Playwright end-to-end tests. See [`spec.md`](spec.m
 specification and [`docs/implementation-report.md`](docs/implementation-report.md) for what is
 built and verified.
 
-**Status:** Phases 0–5 (foundation, Employee Dashboard, Day- and Week-mode time entry, and weekly
-submission). Manager approvals (Phase 6) and administration (Phase 7) are not implemented yet.
+**Status:** Phases 0–6 (foundation, Employee Dashboard, Day- and Week-mode time entry, weekly
+submission, and manager approvals). Administration and hardening (Phase 7) are not implemented yet.
 
 ## Prerequisites
 
@@ -50,9 +50,11 @@ Seeded synthetic accounts (all share the password you set as `SEED_PASSWORD`):
 
 | Email | Role |
 | --- | --- |
-| `employee@example.test` | Employee (has sample weeks) |
+| `employee@example.test` | Employee (Alex; has sample weeks) |
 | `employee2@example.test` | Employee (isolation checks) |
-| `manager@example.test` | Manager |
+| `manager@example.test` | Manager (Morgan) — reviews `employee@` and `employee2@` |
+| `manager2@example.test` | Manager (Riley) — reviews only `employee3@` |
+| `employee3@example.test` | Employee (Taylor), reports to Riley |
 | `admin@example.test` | Admin |
 
 Sample weeks for `employee@example.test` (Monday-first): `2026-10-19` (draft), `2026-10-12`

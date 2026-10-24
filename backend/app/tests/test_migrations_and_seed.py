@@ -83,7 +83,7 @@ def test_seed_is_idempotent_and_requires_strong_password(db: Session) -> None:
         db.scalar(select(func.count()).select_from(Project)),
         db.scalar(select(func.count()).select_from(TimeEntry)),
     )
-    assert counts == again == (4, 4, 19)
+    assert counts == again == (6, 4, 22)
 
 
 def test_seed_uses_only_reserved_example_domain(db: Session) -> None:

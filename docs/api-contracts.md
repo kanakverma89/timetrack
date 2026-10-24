@@ -1,4 +1,4 @@
-# API contracts (implemented in Phases 1–5)
+# API contracts (implemented in Phases 1–6)
 
 Base path `/api/v1`. JSON. Dates `YYYY-MM-DD`. Hours are decimal **strings** with two places.
 Interactive docs: `/api/v1/docs` when enabled (development/test by default). Unsafe methods
@@ -15,7 +15,7 @@ Every error uses one envelope (validation, auth, unknown routes, 5xx):
 | Status | `code` | When |
 | --- | --- | --- |
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | no/expired/revoked session; wrong credentials (same message for unknown user) |
-| 403 | `FORBIDDEN` | missing CSRF header, disallowed `Origin`, insufficient role |
+| 403 | `FORBIDDEN` | missing CSRF header, disallowed `Origin`, insufficient role (every `/approvals` route for employees); trying to review your own week |
 | 409 | `WEEK_NOT_EDITABLE` / `STALE_ENTRY` / `INVALID_TRANSITION` | the week is submitted/approved; the entry's `version` no longer matches; the week is not DRAFT/REJECTED so it cannot be submitted |
 | 404 | `NOT_FOUND` | unknown route or resource; **also another employee's entry** (indistinguishable from missing) |
 | 405 | `METHOD_NOT_ALLOWED` | |
@@ -43,6 +43,10 @@ The `X-Request-ID` response header equals `error.request_id`; a valid inbound `X
 | `POST /time-entries` | session + CSRF | Create an entry (201) |
 | `POST /time-entries/batch` | session + CSRF | Week mode: create several entries for one week atomically (201) |
 | `POST /timesheets/weeks/{date}/submit` | session + CSRF | Submit the caller's week for approval (200) |
+| `GET /approvals` | manager/admin | Paginated list of weeks to review (see below) |
+| `GET /approvals/{week_id}` | manager/admin | Review detail: employee, full week, history |
+| `POST /approvals/{week_id}/approve` | manager/admin + CSRF | Approve a submitted week (200) |
+| `POST /approvals/{week_id}/reject` | manager/admin + CSRF | Reject with a required reason (200) |
 | `PATCH /time-entries/{id}` | session + CSRF | Partial update (200) |
 | `DELETE /time-entries/{id}` | session + CSRF | Delete (204) |
 
@@ -173,6 +177,53 @@ notification payload. After a successful submission every write to the week retu
 Notification payload (outbox `payload`, ids and totals only): `week_id`, `employee_id`,
 `manager_id` (may be null), `week_start_date`, `entry_count`, `total_hours`, `resubmission`.
 
+## Manager review (Phase 6)
+
+Every `/approvals` route requires the **manager** or **admin** role (employees get `403`). Within that,
+a manager sees only employees whose `manager_id` is them; an admin sees everyone; nobody sees their own
+weeks here (see decisions D-51 to D-54).
+
+`GET /approvals?status=SUBMITTED&week_start_date=2026-10-19&page=1&page_size=20`
+
+- `status`: `SUBMITTED` (default), `APPROVED` or `REJECTED`. `DRAFT` is `422`: drafts are private.
+- `week_start_date`: optional; any date in the week.
+- `page` ≥ 1, `page_size` 1–100. Ordered oldest submission first.
+
+```json
+{ "items": [ { "week_id": "uuid",
+               "employee": { "id": "uuid", "display_name": "Alex Employee", "email": "…" },
+               "week_start_date": "2026-10-19", "week_end_date": "2026-10-25",
+               "status": "SUBMITTED", "submitted_at": "…", "reviewed_at": null, "reviewer_name": null,
+               "total_hours": "14.50", "entry_count": 2 } ],
+  "page": 1, "page_size": 20, "total": 37 }
+```
+
+`GET /approvals/{week_id}` returns `{ employee, week, history }`: `week` has the same shape as
+`GET /timesheets/weeks/{date}` (entries, summary, daily totals, `review_comment`, `reviewed_by_name`)
+and `history` is the append-only trail, oldest first: `{ action, actor, comment, created_at }`.
+Unknown, out-of-scope and draft weeks are the same `404`; your own week is `403`.
+
+`POST /approvals/{week_id}/approve` — body optional `{ "comment": "≤ 500 chars" | null }`.
+`POST /approvals/{week_id}/reject` — body `{ "comment": "reason" }`, required, at least 5 characters
+after trimming and at most 1000 (otherwise `422`, `field_errors.comment`). Both accept an optional
+`Idempotency-Key` header (same rules as submission) and return the updated detail.
+
+| Situation | Response |
+| --- | --- |
+| Week not SUBMITTED (already decided, or back with the employee) | `409 INVALID_TRANSITION`, nothing changes |
+| Out-of-scope manager / unknown id / draft | `404 NOT_FOUND` |
+| Own week | `403 FORBIDDEN` |
+| Two reviewers at once | exactly one `200`; the other `409` |
+| Same key + same week again | `200` with the current detail; no second event |
+| Body contains `status`, `reviewer_id`, … | `422` (unknown fields are refused) |
+
+A decision, in one transaction: sets `status`, `reviewed_by`, `reviewed_at`, `review_comment`; appends
+the `APPROVED`/`REJECTED` event with the actor and comment; enqueues `TIMESHEET_APPROVED` /
+`TIMESHEET_REJECTED` for the employee (payload: `week_id`, `employee_id`, `reviewer_id`,
+`week_start_date`, `decision` — never the reason). Afterwards the employee's week shows the decision,
+`reviewed_by_name` and the reason; a rejected week is editable and can be resubmitted, an approved one
+is final.
+
 ## Not yet implemented
 
-Manager `/approvals/*` (spec §8.7).
+Administration endpoints (users, teams, projects, tasks, earning codes, policy) — Phase 7.
