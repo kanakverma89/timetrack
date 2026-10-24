@@ -23,7 +23,12 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=(), payment=()",
+    "Cross-Origin-Resource-Policy": "same-site",
 }
+# An API returns data, never a page: nothing it sends should ever be rendered or framed.
+API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+HSTS = "max-age=31536000; includeSubDomains"
 
 
 def create_app(
@@ -75,6 +80,13 @@ def create_app(
         response.headers["X-Request-ID"] = request_id
         for key, value in SECURITY_HEADERS.items():
             response.headers.setdefault(key, value)
+        # The interactive docs (development only) need scripts and styles, so they get no CSP.
+        if not (
+            settings.docs_enabled and request.url.path.startswith(settings.api_v1_prefix + "/docs")
+        ):
+            response.headers.setdefault("Content-Security-Policy", API_CSP)
+        if settings.cookie_secure:  # production: tell browsers to insist on HTTPS from now on
+            response.headers.setdefault("Strict-Transport-Security", HSTS)
         return response
 
     # Added last so it is outermost and also answers preflights.
