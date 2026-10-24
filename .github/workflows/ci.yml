@@ -1,4 +1,3 @@
-# NOTE: written alongside the code but not executed in the environment that produced it.
 name: ci
 
 on:
@@ -7,6 +6,11 @@ on:
 
 permissions:
   contents: read
+
+# A newer push to the same ref supersedes an older, still-running run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   POSTGRES_USER: timetrack
@@ -18,7 +22,13 @@ env:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    name: backend (py${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12 is the declared minimum; 3.14 is what development uses.
+        python: ["3.12", "3.14"]
     services:
       postgres:
         image: postgres:16
@@ -34,10 +44,10 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: backend/pyproject.toml
       - run: pip install -e ".[dev]"
@@ -49,15 +59,21 @@ jobs:
       - run: pytest
 
   frontend:
-    runs-on: ubuntu-latest
+    name: frontend (node${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22 is the declared minimum line (vitest/jsdom require >=22.12 / >=22.22); 22 also runs E2E.
+        node: [22, 24, 26]
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -68,8 +84,9 @@ jobs:
       - run: npm run build
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [backend, frontend]
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -82,11 +99,11 @@ jobs:
           --health-cmd "pg_isready -U timetrack" --health-interval 5s
           --health-timeout 3s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -98,7 +115,7 @@ jobs:
         working-directory: frontend
       - run: npx playwright test
         working-directory: frontend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report

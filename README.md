@@ -11,7 +11,8 @@ not implemented yet.
 
 ## Prerequisites
 
-- Docker (for PostgreSQL 16), Python ≥ 3.12, Node ≥ 20
+- Docker (for PostgreSQL 16), Python ≥ 3.12, Node ≥ 22.22 (22, 24 or 26; `frontend/.nvmrc` pins 22).
+  Older Node is refused at `npm ci` because the test tooling (Vitest 5, jsdom 30) needs it.
 - Free ports: 5432 (database), 8000 (API), 5173 (web); 8100/5174 for E2E runs
 
 ## Setup
