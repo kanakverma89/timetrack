@@ -93,6 +93,7 @@ function TaskDialog({
         <CheckboxField
           label="Active"
           checked={active}
+          error={problems.fields.is_active}
           hint="Inactive tasks cannot be chosen for new entries; existing entries keep them."
           onChange={setActive}
         />

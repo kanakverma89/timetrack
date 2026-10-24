@@ -37,6 +37,8 @@ function EarningCodeDialog({
   const [active, setActive] = useState(existing?.is_active ?? true);
   const [problems, setProblems] = useState<Problems>(NO_PROBLEMS);
   const inFlight = useRef(false);
+  // The server refuses to reclassify a code that entries already use; say so up front.
+  const locked = existing !== null && existing.entry_count > 0;
   const unchanged =
     existing !== null &&
     name.trim() === existing.name &&
@@ -105,11 +107,12 @@ function EarningCodeDialog({
         label="Classification"
         value={classification}
         options={CLASSES}
+        disabled={locked}
         hint={
-          existing && existing.entry_count > 0
-            ? `Changing this affects how ${existing.entry_count} existing ${
-                existing.entry_count === 1 ? 'entry counts' : 'entries count'
-              } in totals and reports.`
+          locked
+            ? `Fixed because ${existing.entry_count} ${
+                existing.entry_count === 1 ? 'entry uses' : 'entries use'
+              } this code, so past totals cannot change. To classify differently, add a new code and retire this one.`
             : 'Decides whether hours with this code count as capped or non-capped in totals.'
         }
         error={problems.fields.classification}
@@ -119,6 +122,7 @@ function EarningCodeDialog({
         <CheckboxField
           label="Active"
           checked={active}
+          error={problems.fields.is_active}
           hint="Inactive codes cannot be chosen for new entries; existing entries keep them."
           onChange={setActive}
         />

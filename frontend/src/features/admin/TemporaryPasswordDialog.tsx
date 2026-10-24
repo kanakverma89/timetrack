@@ -50,13 +50,15 @@ export function TemporaryPasswordDialog({ name, email, kind, password, onDone }:
             </output>
           </p>
           <p className="notice">
-            This is the only time it is shown. Give it to {name} through a private channel. They must
-            choose their own password the first time they sign in
+            This is the only time it is shown. Give it to {name} through a private channel. They
+            must choose their own password the first time they sign in
             {kind === 'reset' ? ', and they have been signed out everywhere' : ''}.
           </p>
           <p role="status" className="hint">
             {copied === 'yes' ? 'Copied to the clipboard.' : null}
-            {copied === 'no' ? 'Could not copy automatically. Select the password and copy it.' : null}
+            {copied === 'no'
+              ? 'Could not copy automatically. Select the password and copy it.'
+              : null}
           </p>
         </div>
       </div>

@@ -258,7 +258,7 @@ def test_policy_starts_from_the_environment_and_is_overridden_in_the_database(
 ) -> None:
     first = admin.get(f"{A}/policy").json()
     assert first["source"] == "environment" and first["updated_by_name"] is None
-    assert first["max_hours_per_entry"] == "24" and first["max_hours_per_day"] is None
+    assert first["max_hours_per_entry"] == "24.00" and first["max_hours_per_day"] is None
 
     saved = admin.put(
         f"{A}/policy",
@@ -277,10 +277,10 @@ def test_policy_starts_from_the_environment_and_is_overridden_in_the_database(
         "12.00",
         "50.00",
     )
-    assert body["environment_defaults"]["max_hours_per_entry"] == "24"
+    assert body["environment_defaults"]["max_hours_per_entry"] == "24.00"
     assert db.get(PolicySetting, 1) is not None
     [event] = audit(db, entity_type=ConfigEntity.POLICY)
-    assert event.details["changes"]["max_hours_per_entry"] == {"from": "24", "to": "10.00"}
+    assert event.details["changes"]["max_hours_per_entry"] == {"from": "24.00", "to": "10.00"}
 
 
 @pytest.mark.parametrize(
@@ -328,7 +328,7 @@ def test_invalid_policies_are_rejected_and_change_nothing(
 def test_a_policy_change_takes_effect_immediately_for_entries_meta_and_submission(
     admin: TestClient, authed: TestClient, world: World
 ) -> None:
-    assert authed.get(f"{API}/meta").json()["max_hours_per_entry"] == "24"
+    assert authed.get(f"{API}/meta").json()["max_hours_per_entry"] == "24.00"
     assert authed.post(f"{API}/time-entries", json=payload(world, hours="9")).status_code == 201
 
     admin.put(
@@ -374,7 +374,7 @@ def test_resetting_the_policy_returns_to_the_environment_defaults(
     assert authed.get(f"{API}/meta").json()["max_hours_per_entry"] == "6.00"
     reset = admin.delete(f"{A}/policy")
     assert reset.status_code == 200 and reset.json()["source"] == "environment"
-    assert authed.get(f"{API}/meta").json()["max_hours_per_entry"] == "24"
+    assert authed.get(f"{API}/meta").json()["max_hours_per_entry"] == "24.00"
     assert db.get(PolicySetting, 1) is None
     assert [e.action for e in audit(db, entity_type=ConfigEntity.POLICY)] == [
         ConfigAction.UPDATED,

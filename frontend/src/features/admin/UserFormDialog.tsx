@@ -153,6 +153,7 @@ export function UserFormDialog({ user, onClose, onCreated, onSaved }: Props) {
           label="Active"
           checked={active}
           disabled={isSelf}
+          error={problems.fields.is_active}
           hint={
             isSelf
               ? 'You cannot deactivate yourself.'
@@ -162,8 +163,8 @@ export function UserFormDialog({ user, onClose, onCreated, onSaved }: Props) {
         />
       ) : (
         <p className="hint">
-          A temporary password is generated and shown once. The person must change it when they first
-          sign in.
+          A temporary password is generated and shown once. The person must change it when they
+          first sign in.
         </p>
       )}
     </FormDialog>

@@ -757,6 +757,7 @@
 /* ---- navigation, approvals -------------------------------------------------------- */
 .main-nav {
   display: flex;
+  flex-wrap: wrap; /* four links for admins: must wrap on a phone, never scroll sideways */
   gap: var(--space-1);
   flex: 1;
   margin-left: var(--space-4);
@@ -957,4 +958,154 @@
   .decision-actions .btn {
     width: 100%;
   }
+}
+
+/* ---- administration and reports --------------------------------------------------- */
+.narrow {
+  max-width: 34rem;
+}
+.block {
+  display: block;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.section-head h2 {
+  margin: 0;
+}
+.sub-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+.sub-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  color: var(--color-text);
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 3px solid transparent;
+}
+.sub-nav a:hover {
+  background: var(--color-accent-soft);
+}
+.sub-nav a[aria-current='page'] {
+  border-bottom-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.form-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+}
+.form-dialog .dialog-body {
+  overflow-y: auto;
+  min-height: 0;
+}
+.field-check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-2);
+  align-items: center;
+}
+.field-check input {
+  width: 1.25rem;
+  min-height: 1.25rem;
+  height: 1.25rem;
+}
+.field-check label {
+  margin: 0;
+}
+.field-check .hint,
+.field-check .field-error {
+  grid-column: 2;
+}
+.check-list {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  max-height: 16rem;
+  overflow-y: auto;
+  margin: 0 0 var(--space-3);
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  font-weight: 400;
+}
+.check-row input {
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+}
+.status-set {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.status-set legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: var(--space-1);
+}
+.status-set .check-row {
+  display: inline-flex;
+  margin-right: var(--space-3);
+}
+.temp-password {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.25rem;
+  letter-spacing: 0.04em;
+  padding: var(--space-3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  user-select: all;
+  word-break: break-all;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.facts dt {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+.facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.report-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+.data-table tfoot th,
+.data-table tfoot td {
+  font-weight: 700;
+  background: var(--color-bg);
+  border-top: 2px solid var(--color-border-strong);
 }

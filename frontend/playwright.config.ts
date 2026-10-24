@@ -10,6 +10,7 @@ try {
 const API_PORT = 8100;
 const WEB_PORT = 5174;
 const E2E_DB = 'timetrack_e2e';
+const ADMIN_SPECS = /admin-.*\.spec\.ts$/;
 
 function e2eDatabaseUrl(): string {
   const base = process.env.DATABASE_URL;
@@ -38,9 +39,30 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    // Specs named admin-*.spec.ts change shared configuration (policy, catalogue, users). They run
+    // alone, one browser after another, once every other spec has finished, so they can never
+    // disturb a test that depends on that configuration.
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: ADMIN_SPECS },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testIgnore: ADMIN_SPECS },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: ADMIN_SPECS },
+    {
+      name: 'admin-chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ADMIN_SPECS,
+      dependencies: ['chromium', 'firefox', 'webkit'],
+    },
+    {
+      name: 'admin-firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: ADMIN_SPECS,
+      dependencies: ['admin-chromium'],
+    },
+    {
+      name: 'admin-webkit',
+      use: { ...devices['Desktop Safari'] },
+      testMatch: ADMIN_SPECS,
+      dependencies: ['admin-firefox'],
+    },
   ],
   webServer: [
     {

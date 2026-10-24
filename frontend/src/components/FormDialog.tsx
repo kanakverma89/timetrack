@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Modal } from './Modal';
 
 interface Props {
@@ -35,14 +35,18 @@ export function FormDialog({
   const titleId = useId();
   const errorRef = useRef<HTMLDivElement>(null);
   const hasError = Boolean(error);
-  // Disabled buttons drop focus to <body>; the error takes it so Tab and Escape keep working.
+  const [attempts, setAttempts] = useState(0);
+  // After every attempt that ends in an error the error takes focus, even if its text is the same
+  // as last time: it is announced again and Tab/Escape keep working (a disabled submit button
+  // would otherwise drop focus to <body>).
   useEffect(() => {
-    if (hasError) errorRef.current?.focus();
-  }, [hasError]);
+    if (hasError && !pending) errorRef.current?.focus();
+  }, [hasError, pending, attempts]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (pending || submitDisabled) return;
+    setAttempts((count) => count + 1);
     onSubmit();
   }
 

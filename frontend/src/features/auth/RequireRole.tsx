@@ -9,7 +9,7 @@ export function RequireRole({ roles }: { roles: Role[] }) {
   return (
     <div className="empty-state" role="alert">
       <h1>You do not have access to this page</h1>
-      <p>Your account is not allowed to review timesheets.</p>
+      <p>Your account is not allowed to use this part of the application.</p>
       <p>
         <Link to="/">Back to your timesheet</Link>
       </p>

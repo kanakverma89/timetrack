@@ -73,7 +73,12 @@ export function TextAreaField({
   onChange,
   rows = 3,
   maxLength,
-}: Common & { value: string; onChange: (value: string) => void; rows?: number; maxLength?: number }) {
+}: Common & {
+  value: string;
+  onChange: (value: string) => void;
+  rows?: number;
+  maxLength?: number;
+}) {
   const id = useId();
   return (
     <div className="field">
@@ -145,12 +150,14 @@ export function SelectField({
 export function CheckboxField({
   label,
   hint,
+  error,
   checked,
   onChange,
   disabled,
 }: {
   label: string;
   hint?: ReactNode;
+  error?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -163,7 +170,8 @@ export function CheckboxField({
         type="checkbox"
         checked={checked}
         disabled={disabled}
-        aria-describedby={hint ? `${id}-hint` : undefined}
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={describedBy(hint ? `${id}-hint` : undefined, error && `${id}-error`)}
         onChange={(event) => onChange(event.target.checked)}
       />
       <label htmlFor={id}>{label}</label>
@@ -172,6 +180,7 @@ export function CheckboxField({
           {hint}
         </p>
       ) : null}
+      <FieldError id={`${id}-error`} message={error} />
     </div>
   );
 }

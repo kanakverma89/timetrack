@@ -29,11 +29,19 @@ class Policy:
     updated_by_name: str | None = None
 
 
+TWO_PLACES = Decimal("0.01")
+
+
+def _hours(value: Decimal | None) -> Decimal | None:
+    """Two decimals, like the database column, so a default and a saved value read the same."""
+    return None if value is None else value.quantize(TWO_PLACES)
+
+
 def from_settings(settings: Settings) -> Policy:
     return Policy(
-        max_hours_per_entry=settings.max_hours_per_entry,
-        max_hours_per_day=settings.max_hours_per_day,
-        max_hours_per_week=settings.max_hours_per_week,
+        max_hours_per_entry=settings.max_hours_per_entry.quantize(TWO_PLACES),
+        max_hours_per_day=_hours(settings.max_hours_per_day),
+        max_hours_per_week=_hours(settings.max_hours_per_week),
         description_max_length=settings.description_max_length,
         source="environment",
     )

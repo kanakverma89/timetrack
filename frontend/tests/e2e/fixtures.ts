@@ -127,6 +127,13 @@ export const WEEK_KEYS = [
   'appr-double',
   'appr-conflict',
   'appr-keyboard',
+  'rep-basic',
+  'rep-csv',
+  'rep-scope',
+  'rep-filters',
+  'rep-a11y',
+  'adm-policy',
+  'adm-catalog',
 ] as const;
 export type WeekKey = (typeof WEEK_KEYS)[number];
 
@@ -140,7 +147,8 @@ const MAX_ATTEMPTS = 3;
 
 export function weekFor(key: WeekKey, projectName: string, attempt = 0): string {
   const slot =
-    (WEEK_KEYS.indexOf(key) * PROJECT_NAMES.length + PROJECT_NAMES.indexOf(projectName)) *
+    (WEEK_KEYS.indexOf(key) * PROJECT_NAMES.length +
+      PROJECT_NAMES.indexOf(projectName.replace(/^admin-/, ''))) *
       MAX_ATTEMPTS +
     attempt;
   const base = Date.UTC(2027, 0, 4); // Monday 2027-01-04
@@ -296,4 +304,50 @@ export async function submittedWeek(
     description: options.description ?? 'Work for review',
   });
   return (await submitViaApi(request, week, options.comment)).id;
+}
+
+// ---- administration helpers --------------------------------------------------------------
+
+/** A unique, valid email so specs can create people without ever colliding. */
+export function uniqueEmail(label: string, projectName: string): string {
+  const stamp = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return `${label}-${projectName.replace(/\W/g, '')}-${stamp}@example.test`.toLowerCase();
+}
+
+export interface CreatedUser {
+  id: string;
+  email: string;
+  temporaryPassword: string;
+}
+
+/** Create a person through the admin API (fast set-up); `request` must be signed in as an admin. */
+export async function createUserViaApi(
+  request: APIRequestContext,
+  data: {
+    email: string;
+    display_name?: string;
+    role?: 'EMPLOYEE' | 'MANAGER' | 'ADMIN';
+    manager_id?: string | null;
+  },
+): Promise<CreatedUser> {
+  const response = await request.post(`${API}/admin/users`, {
+    headers: CSRF,
+    data: {
+      email: data.email,
+      display_name: data.display_name ?? 'Test Person',
+      role: data.role ?? 'EMPLOYEE',
+      manager_id: data.manager_id ?? null,
+    },
+  });
+  expect(response.status(), await response.text()).toBe(201);
+  const body = await response.json();
+  return { id: body.user.id, email: body.user.email, temporaryPassword: body.temporary_password };
+}
+
+/** Sign in through the sign-in form (the way a person does) with an explicit password. */
+export async function signInViaForm(page: Page, email: string, password: string) {
+  await page.goto('/login');
+  await page.getByLabel(/^Email/).fill(email);
+  await page.getByLabel(/^Password/).fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
 }

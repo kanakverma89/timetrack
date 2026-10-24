@@ -113,6 +113,7 @@ function ProjectDialog({
         <CheckboxField
           label="Active"
           checked={active}
+          error={problems.fields.is_active}
           hint="Inactive projects cannot be chosen for new entries; existing entries keep them."
           onChange={setActive}
         />
@@ -213,7 +214,9 @@ export function ProjectsPage() {
                   </th>
                   <td data-label="Tasks">{project.task_count}</td>
                   <td data-label="Status">
-                    <span className={`badge ${project.is_active ? 'badge-approved' : 'badge-draft'}`}>
+                    <span
+                      className={`badge ${project.is_active ? 'badge-approved' : 'badge-draft'}`}
+                    >
                       {project.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>

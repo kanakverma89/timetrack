@@ -55,7 +55,10 @@ function TeamNameDialog({
       onSubmit={() => {
         if (inFlight.current) return;
         if (!name.trim()) {
-          setProblems({ fields: { name: 'Enter a name.' }, message: 'Please fix the highlighted fields.' });
+          setProblems({
+            fields: { name: 'Enter a name.' },
+            message: 'Please fix the highlighted fields.',
+          });
           return;
         }
         setProblems(NO_PROBLEMS);
@@ -307,8 +310,8 @@ export function TeamsPage() {
         >
           <p>
             The team is removed. The {dialog.team.member_count}{' '}
-            {dialog.team.member_count === 1 ? 'person' : 'people'} in it are not affected and
-            keep their timesheets and managers.
+            {dialog.team.member_count === 1 ? 'person' : 'people'} in it are not affected and keep
+            their timesheets and managers.
           </p>
         </ConfirmDialog>
       ) : null}
