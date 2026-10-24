@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import Classification, WeekStatus
 
@@ -78,3 +78,9 @@ class TimeEntryBatchRead(BaseModel):
     entries: list[TimeEntryRead]
     summary: WeekSummaryRead
     daily_totals: list[DailyTotalRead]
+
+
+class SubmitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    comment: str | None = Field(default=None, max_length=500)

@@ -91,8 +91,12 @@ def make_client(engine: Engine) -> Any:
     """Factory building a TestClient for an app created with the given settings."""
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
-    def _make(settings: Settings, **client_kwargs: Any) -> TestClient:
-        app = create_app(settings)
+    def _make(
+        settings: Settings, notification_port: Any = None, **client_kwargs: Any
+    ) -> TestClient:
+        app = create_app(settings, notification_port)
+        # Background work (notification delivery) must use the same test database.
+        app.state.session_factory = factory
 
         def _get_db() -> Iterator[Session]:
             session = factory()

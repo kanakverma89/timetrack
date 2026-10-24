@@ -7,7 +7,16 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.models import EntryAction, TimeEntry, TimeEntryEvent, TimesheetWeek, WeekStatus
+from app.models import (
+    ApprovalAction,
+    ApprovalEvent,
+    EntryAction,
+    IdempotencyKey,
+    TimeEntry,
+    TimeEntryEvent,
+    TimesheetWeek,
+    WeekStatus,
+)
 
 
 def get_week_with_entries(
@@ -108,4 +117,61 @@ def add_entry_event(
             action=action,
             details=details,
         )
+    )
+
+
+def lock_week_by_start(
+    db: Session, employee_id: uuid.UUID, week_start_date: date
+) -> TimesheetWeek | None:
+    """The employee's week row for that start date, locked until the transaction ends."""
+    return db.execute(
+        select(TimesheetWeek)
+        .where(
+            TimesheetWeek.employee_id == employee_id,
+            TimesheetWeek.week_start_date == week_start_date,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
+
+
+def list_week_entries(db: Session, week_id: uuid.UUID) -> list[TimeEntry]:
+    return list(
+        db.scalars(
+            select(TimeEntry)
+            .where(TimeEntry.timesheet_week_id == week_id)
+            .options(joinedload(TimeEntry.earning_code))
+            .order_by(TimeEntry.work_date, TimeEntry.created_at, TimeEntry.id)
+        ).unique()
+    )
+
+
+def get_idempotency_key(
+    db: Session, user_id: uuid.UUID, scope: str, key: str
+) -> IdempotencyKey | None:
+    return db.scalar(
+        select(IdempotencyKey).where(
+            IdempotencyKey.user_id == user_id,
+            IdempotencyKey.scope == scope,
+            IdempotencyKey.key == key,
+        )
+    )
+
+
+def remember_idempotency_key(
+    db: Session, *, user_id: uuid.UUID, scope: str, key: str, aggregate_id: uuid.UUID
+) -> None:
+    db.add(IdempotencyKey(user_id=user_id, scope=scope, key=key, aggregate_id=aggregate_id))
+
+
+def add_approval_event(
+    db: Session,
+    *,
+    week_id: uuid.UUID,
+    actor_id: uuid.UUID,
+    action: ApprovalAction,
+    comment: str | None,
+) -> None:
+    db.add(
+        ApprovalEvent(timesheet_week_id=week_id, actor_id=actor_id, action=action, comment=comment)
     )

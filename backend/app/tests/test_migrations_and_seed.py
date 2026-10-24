@@ -22,6 +22,7 @@ EXPECTED_TABLES = {
     "timesheet_weeks",
     "time_entries",
     "time_entry_events",
+    "idempotency_keys",
     "approval_events",
     "notification_outbox",
 }
