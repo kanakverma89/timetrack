@@ -54,7 +54,7 @@ not listed was not run.
 | `npm run build` | succeeds |
 | `npx playwright test` — Chromium, Firefox, WebKit, local | **207 passed, 6 skipped**, identical in two consecutive full runs (skips: 3 optional screenshot captures, 3 WebKit keyboard-Tab tests) |
 | `scripts/perf_check.py` (two runs) | every p95 far under 500 ms (see `docs/performance.md`) |
-| GitHub Actions (earlier branches) | all jobs green on Python 3.12/3.14 and Node 22/24/26, including the E2E job; **not yet run on the Phase 5 branch** |
+| GitHub Actions on the Phase 5 branch | **all jobs green**: backend on Python 3.12 and 3.14, frontend on Node 22, 24 and 26, and the E2E job (full Playwright suite, three browsers) |
 
 Mutation checks (change the code, confirm a test fails) for Phase 5: removing the row lock, the
 status check, the audit event, the idempotency lookup, and the weekly policy (backend); a fresh key
@@ -78,7 +78,6 @@ to the error (frontend). All were caught.
 
 ## Not verified / known limitations
 
-- CI has not yet run on the Phase 5 branch.
 - Screen readers, real mobile devices, performance beyond one machine, other browsers.
 - WebKit Tab-order is not asserted (three tests skipped); activation and focus return are.
 - No Dockerfiles for backend/frontend; Compose provides only PostgreSQL.
