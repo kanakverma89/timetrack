@@ -31,6 +31,12 @@ class User(IdMixin, TimestampMixin, Base):
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    # Set when an administrator creates the account or resets the password: the person must choose
+    # their own before using anything else.
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuthSession(IdMixin, Base):

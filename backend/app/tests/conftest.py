@@ -141,3 +141,16 @@ def world(db: Session) -> World:
 def authed(client: TestClient, world: World) -> TestClient:
     login(client)
     return client
+
+
+@pytest.fixture
+def login_as(make_client: Any, settings: Settings) -> Any:
+    """Factory: a TestClient signed in as the given (already existing) user."""
+    from app.tests.factories import PASSWORD
+
+    def _login(email: str, password: str = PASSWORD) -> TestClient:
+        client: TestClient = make_client(settings)
+        login(client, email, password)
+        return client
+
+    return _login

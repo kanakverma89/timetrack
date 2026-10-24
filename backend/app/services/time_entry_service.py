@@ -26,6 +26,7 @@ from app.repositories import timesheets as repo
 from app.schemas.time_entry import TimeEntryBatchCreate, TimeEntryCreate, TimeEntryUpdate
 from app.schemas.timesheet import TimesheetWeekRead
 from app.services import entry_rules, summary, timesheet_service, weeks
+from app.services.policy import Policy, effective_policy
 
 
 def _snapshot(entry: TimeEntry) -> dict[str, object]:
@@ -85,25 +86,25 @@ def _check_scalars(
     work_date: date,
     hours: Decimal,
     description: str,
-    settings: Settings,
+    policy: Policy,
     errors: dict[str, str],
 ) -> None:
     for field, message in (
         ("work_date", entry_rules.check_work_date_supported(work_date)),
-        ("hours", entry_rules.check_hours(hours, settings.max_hours_per_entry)),
+        ("hours", entry_rules.check_hours(hours, policy.max_hours_per_entry)),
         (
             "description",
-            entry_rules.check_description(description, settings.description_max_length),
+            entry_rules.check_description(description, policy.description_max_length),
         ),
     ):
         if message:
             errors[field] = message
 
 
-def _new_entry_errors(db: Session, item: TimeEntryCreate, settings: Settings) -> dict[str, str]:
+def _new_entry_errors(db: Session, item: TimeEntryCreate, policy: Policy) -> dict[str, str]:
     """All field problems for one prospective new entry (unprefixed field names)."""
     errors: dict[str, str] = {}
-    _check_scalars(item.work_date, item.hours, item.description, settings, errors)
+    _check_scalars(item.work_date, item.hours, item.description, policy, errors)
     _check_references(
         db,
         project_id=item.project_id,
@@ -143,7 +144,7 @@ def _insert_entry(db: Session, user: User, week: TimesheetWeek, item: TimeEntryC
 def create_entry(
     db: Session, user: User, payload: TimeEntryCreate, settings: Settings
 ) -> TimeEntry:
-    errors = _new_entry_errors(db, payload, settings)
+    errors = _new_entry_errors(db, payload, effective_policy(db, settings))
     if errors:
         raise ValidationFailedError(field_errors=errors)
 
@@ -164,6 +165,7 @@ def create_entries_batch(
     unless all items are valid. The week is then locked, checked for editability, and all rows plus
     their audit events are inserted in a single transaction. Existing entries are never replaced.
     """
+    policy = effective_policy(db, settings)
     errors: dict[str, str] = {}
     # Shared fields repeat on every item; validate each distinct combination only once.
     reference_cache: dict[tuple[uuid.UUID, uuid.UUID | None, uuid.UUID], dict[str, str]] = {}
@@ -185,7 +187,7 @@ def create_entries_batch(
             )
             reference_cache[ref_key] = ref_errors
         item_errors = dict(reference_cache[ref_key])
-        _check_scalars(item.work_date, item.hours, item.description, settings, item_errors)
+        _check_scalars(item.work_date, item.hours, item.description, policy, item_errors)
 
         week_start = None
         if "work_date" not in item_errors:
@@ -246,7 +248,9 @@ def update_entry(
     }
 
     errors: dict[str, str] = {}
-    _check_scalars(new["work_date"], new["hours"], new["description"], settings, errors)
+    _check_scalars(
+        new["work_date"], new["hours"], new["description"], effective_policy(db, settings), errors
+    )
     if "work_date" not in errors and not (
         week.week_start_date <= new["work_date"] <= week.week_end_date
     ):

@@ -24,6 +24,7 @@ from app.models import ApprovalAction, User, WeekStatus
 from app.repositories import timesheets as repo
 from app.schemas.timesheet import TimesheetWeekRead
 from app.services import notifications, submission_rules, summary, timesheet_service, weeks
+from app.services.policy import effective_policy
 
 SCOPE = "week_submit"
 EVENT_TYPE = "TIMESHEET_SUBMITTED"
@@ -88,6 +89,7 @@ def submit_week(
             field_errors={"entries": "Add at least one time entry before submitting."},
         )
 
+    policy = effective_policy(db, settings)
     views = [
         submission_rules.EntryView(str(e.id), e.work_date, e.hours, e.description) for e in entries
     ]
@@ -95,14 +97,14 @@ def submit_week(
         views,
         week_start=week.week_start_date,
         week_end=week.week_end_date,
-        max_hours_per_entry=settings.max_hours_per_entry,
-        description_max=settings.description_max_length,
+        max_hours_per_entry=policy.max_hours_per_entry,
+        description_max=policy.description_max_length,
     )
     errors.update(
         submission_rules.check_policy(
             views,
-            max_hours_per_day=settings.max_hours_per_day,
-            max_hours_per_week=settings.max_hours_per_week,
+            max_hours_per_day=policy.max_hours_per_day,
+            max_hours_per_week=policy.max_hours_per_week,
         )
     )
     if errors:

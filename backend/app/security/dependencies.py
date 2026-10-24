@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.db import get_db
-from app.core.errors import ForbiddenError, UnauthenticatedError
+from app.core.errors import ForbiddenError, PasswordChangeRequiredError, UnauthenticatedError
 from app.models import Role, User
 from app.repositories import sessions as session_repo
 from app.security.tokens import digest_token
@@ -17,6 +17,8 @@ from app.security.tokens import digest_token
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_HEADER = "x-requested-with"
 CSRF_VALUE = "timetrack"
+# Everything else is refused until a temporary password has been replaced.
+PASSWORD_CHANGE_ALLOWED = frozenset({"/auth/me", "/auth/change-password", "/auth/logout"})
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -50,6 +52,10 @@ def get_current_user(request: Request, db: DbDep, settings: SettingsDep) -> User
     user = session_repo.get_user_for_active_session(db, digest)
     if user is None or not user.is_active:
         raise UnauthenticatedError()
+    if user.must_change_password:
+        path = request.url.path.removeprefix(settings.api_v1_prefix)
+        if path not in PASSWORD_CHANGE_ALLOWED:
+            raise PasswordChangeRequiredError()
     return user
 
 

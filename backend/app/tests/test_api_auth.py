@@ -30,7 +30,9 @@ def test_login_success_returns_user_and_sets_hardened_cookie(
     body = response.json()
     assert body["email"] == "emp@example.test"
     assert body["role"] == "EMPLOYEE"
-    assert "password" not in response.text and "hash" not in response.text
+    # No credential material in the response (the boolean flag "must_change_password" is fine).
+    assert "password_hash" not in response.text and "argon2" not in response.text
+    assert set(body) == {"id", "email", "display_name", "role", "must_change_password"}
     cookie = response.headers["set-cookie"].lower()
     assert "timetrack_session=" in cookie
     assert "httponly" in cookie

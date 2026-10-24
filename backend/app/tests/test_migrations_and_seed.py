@@ -23,6 +23,8 @@ EXPECTED_TABLES = {
     "time_entries",
     "time_entry_events",
     "idempotency_keys",
+    "policy_settings",
+    "config_audit_events",
     "approval_events",
     "notification_outbox",
 }

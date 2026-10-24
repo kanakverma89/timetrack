@@ -1,4 +1,5 @@
 from app.models.base import Base
+from app.models.config import ConfigAction, ConfigAuditEvent, ConfigEntity, PolicySetting
 from app.models.project import Classification, EarningCode, Project, ProjectTask
 from app.models.team import Team, TeamMembership
 from app.models.timesheet import (
@@ -21,11 +22,15 @@ __all__ = [
     "AuthSession",
     "Base",
     "Classification",
+    "ConfigAction",
+    "ConfigAuditEvent",
+    "ConfigEntity",
     "EarningCode",
     "EntryAction",
     "IdempotencyKey",
     "NotificationOutbox",
     "OutboxStatus",
+    "PolicySetting",
     "Project",
     "ProjectTask",
     "Role",

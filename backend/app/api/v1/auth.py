@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response
 
-from app.core.errors import InvalidCredentialsError, RateLimitedError
-from app.schemas.auth import LoginRequest, UserRead
+from app.core.errors import InvalidCredentialsError, RateLimitedError, ValidationFailedError
+from app.schemas.auth import ChangePasswordRequest, LoginRequest, UserRead
 from app.security.dependencies import CurrentUser, DbDep, SettingsDep
+from app.security.tokens import digest_token
 from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -62,3 +63,32 @@ def logout(request: Request, response: Response, db: DbDep, settings: SettingsDe
 @router.get("/me", response_model=UserRead)
 def me(user: CurrentUser) -> UserRead:
     return UserRead.model_validate(user)
+
+
+@router.post("/change-password", status_code=204)
+def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    user: CurrentUser,
+    db: DbDep,
+    settings: SettingsDep,
+) -> None:
+    """Choose a new password. Required first after an administrator created or reset the account."""
+    limiter = request.app.state.login_limiter
+    key = f"change-password|{user.id}"
+    if limiter.is_blocked(key):
+        raise RateLimitedError(headers={"Retry-After": str(settings.login_window_seconds)})
+    token = request.cookies.get(settings.session_cookie_name)
+    try:
+        auth_service.change_password(
+            db,
+            user,
+            current_password=body.current_password,
+            new_password=body.new_password,
+            keep_session_digest=digest_token(token, settings.session_secret) if token else None,
+        )
+    except ValidationFailedError as error:
+        if "current_password" in error.field_errors:
+            limiter.record_failure(key)  # guessing the current password is throttled like login
+        raise
+    limiter.reset(key)
