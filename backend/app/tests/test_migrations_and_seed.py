@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "earning_codes",
     "timesheet_weeks",
     "time_entries",
+    "time_entry_events",
     "approval_events",
     "notification_outbox",
 }

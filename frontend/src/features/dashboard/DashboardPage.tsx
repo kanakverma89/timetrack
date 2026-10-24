@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fetchMeta, fetchWeek } from '../../api/endpoints';
 import { ErrorState } from '../../components/ErrorState';
 import { LiveRegion } from '../../components/LiveRegion';
 import { LoadingSkeleton } from '../../components/LoadingSkeleton';
+import { Toast } from '../../components/Toast';
+import type { TimeEntry } from '../../api/types';
+import { DeleteEntryDialog } from '../time-entries/DeleteEntryDialog';
+import { TimeEntryFormPanel } from '../time-entries/TimeEntryFormPanel';
 import { addDays, formatWeekRange, isValidIsoDate } from '../../utils/dates';
 import { formatHours } from '../../utils/hours';
 import { DailyHoursCard } from './DailyHoursCard';
@@ -38,6 +42,11 @@ export function DashboardPage() {
     document.title = 'Timesheet · TimeTrack';
   }, []);
 
+  const [panel, setPanel] = useState<{ entry: TimeEntry | null } | null>(null);
+  const [deleting, setDeleting] = useState<TimeEntry | null>(null);
+  const [toast, setToast] = useState('');
+  const dismissToast = useCallback(() => setToast(''), []);
+
   const goTo = (start: string) => setParams({ week: start });
   const base = weekStart;
 
@@ -60,7 +69,8 @@ export function DashboardPage() {
         onRetry={() => void meta.refetch()}
       />
     );
-  } else if (week.isError) {
+  } else if (week.isError && !week.data) {
+    // A failed background refresh keeps the data already on screen; only a first load is fatal.
     body = <ErrorState error={week.error} onRetry={() => void week.refetch()} />;
   } else if (!week.data) {
     body = <LoadingSkeleton label="Loading timesheet" />;
@@ -94,6 +104,8 @@ export function DashboardPage() {
           entries={data.entries}
           dailyTotals={data.daily_totals}
           status={data.status}
+          onEdit={data.is_editable ? (entry) => setPanel({ entry }) : undefined}
+          onDelete={data.is_editable ? setDeleting : undefined}
         />
       </>
     );
@@ -101,7 +113,19 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard">
-      <h1>Timesheet</h1>
+      <div className="dashboard-head">
+        <h1>Timesheet</h1>
+        {week.data?.is_editable ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-focus-fallback
+            onClick={() => setPanel({ entry: null })}
+          >
+            Add entry
+          </button>
+        ) : null}
+      </div>
       <WeekNavigator
         start={week.data?.week_start_date ?? null}
         end={week.data?.week_end_date ?? null}
@@ -112,6 +136,41 @@ export function DashboardPage() {
       />
       <LiveRegion message={announcement} />
       {body}
+
+      {panel && week.data ? (
+        <TimeEntryFormPanel
+          week={week.data}
+          entry={panel.entry}
+          defaultDate={defaultDate(
+            week.data.week_start_date,
+            week.data.week_end_date,
+            meta.data?.today,
+          )}
+          maxHours={meta.data?.max_hours_per_entry ?? '24'}
+          descriptionMax={meta.data?.description_max_length ?? 256}
+          onClose={() => setPanel(null)}
+          onSaved={(message) => {
+            setPanel(null);
+            setToast(message);
+          }}
+        />
+      ) : null}
+      {deleting ? (
+        <DeleteEntryDialog
+          entry={deleting}
+          onCancel={() => setDeleting(null)}
+          onDeleted={() => {
+            setDeleting(null);
+            setToast('Entry deleted.');
+          }}
+        />
+      ) : null}
+      <Toast message={toast} onDismiss={dismissToast} />
     </div>
   );
+}
+
+/** Today if it falls inside the week, otherwise the first day of the week. */
+function defaultDate(start: string, end: string, today: string | undefined): string {
+  return today && today >= start && today <= end ? today : start;
 }

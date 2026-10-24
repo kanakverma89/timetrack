@@ -8,6 +8,8 @@ interface Props {
   entries: TimeEntry[];
   dailyTotals: DailyTotal[];
   status: WeekStatus;
+  onEdit?: (entry: TimeEntry) => void;
+  onDelete?: (entry: TimeEntry) => void;
 }
 
 export function groupByDate(entries: TimeEntry[]): Array<[date: string, entries: TimeEntry[]]> {
@@ -20,7 +22,7 @@ export function groupByDate(entries: TimeEntry[]): Array<[date: string, entries:
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
 
-export function TimeEntryList({ entries, dailyTotals, status }: Props) {
+export function TimeEntryList({ entries, dailyTotals, status, onEdit, onDelete }: Props) {
   const totals = new Map(dailyTotals.map((t) => [t.date, t.hours]));
   return (
     <section className="entries" aria-labelledby="entries-heading">
@@ -38,7 +40,13 @@ export function TimeEntryList({ entries, dailyTotals, status }: Props) {
             </h3>
             <ul className="entry-list">
               {dayEntries.map((entry) => (
-                <TimeEntryCard key={entry.id} entry={entry} status={status} />
+                <TimeEntryCard
+                  key={entry.id}
+                  entry={entry}
+                  status={status}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
               ))}
             </ul>
           </div>

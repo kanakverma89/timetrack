@@ -144,6 +144,43 @@ class ApprovalEvent(IdMixin, Base):
     )
 
 
+class EntryAction(enum.StrEnum):
+    CREATED = "CREATED"
+    UPDATED = "UPDATED"
+    DELETED = "DELETED"
+
+
+class TimeEntryEvent(IdMixin, Base):
+    """Append-only audit of time-entry changes.
+
+    ``time_entry_id`` is intentionally not a foreign key so history outlives deleted entries.
+    ``details`` holds ids, dates and hours only; free-text descriptions are never copied here.
+    """
+
+    __tablename__ = "time_entry_events"
+    __table_args__ = (
+        Index(
+            "ix_time_entry_events_timesheet_week_id_created_at", "timesheet_week_id", "created_at"
+        ),
+        Index("ix_time_entry_events_time_entry_id", "time_entry_id"),
+    )
+
+    timesheet_week_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("timesheet_weeks.id", ondelete="RESTRICT"), nullable=False
+    )
+    time_entry_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    actor_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    action: Mapped[EntryAction] = mapped_column(str_enum(EntryAction, "action"), nullable=False)
+    details: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class OutboxStatus(enum.StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
