@@ -9,6 +9,7 @@ import { Toast } from '../../components/Toast';
 import type { TimeEntry, TimesheetWeek } from '../../api/types';
 import { DeleteEntryDialog } from '../time-entries/DeleteEntryDialog';
 import { SubmitWeekDialog } from './SubmitWeekDialog';
+import { WithdrawWeekDialog } from './WithdrawWeekDialog';
 import { TimeEntryFormPanel } from '../time-entries/TimeEntryFormPanel';
 import { addDays, formatTimestamp, formatWeekRange, isValidIsoDate } from '../../utils/dates';
 import { formatHours } from '../../utils/hours';
@@ -46,6 +47,7 @@ export function DashboardPage() {
   const [panel, setPanel] = useState<{ entry: TimeEntry | null } | null>(null);
   const [deleting, setDeleting] = useState<TimeEntry | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [toast, setToast] = useState('');
   const dismissToast = useCallback(() => setToast(''), []);
 
@@ -131,6 +133,20 @@ export function DashboardPage() {
                   </p>
                 ) : null}
               </div>
+            ) : data.status === 'SUBMITTED' ? (
+              <div className="submit-action">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  aria-describedby="withdraw-hint"
+                  onClick={() => setWithdrawing(true)}
+                >
+                  Withdraw submission
+                </button>
+                <p id="withdraw-hint" className="hint">
+                  Waiting for your manager. Withdraw it to make changes.
+                </p>
+              </div>
             ) : null
           }
         />
@@ -206,6 +222,16 @@ export function DashboardPage() {
           onSubmitted={() => {
             setSubmitting(false);
             setToast('Week submitted for approval.');
+          }}
+        />
+      ) : null}
+      {withdrawing && week.data ? (
+        <WithdrawWeekDialog
+          week={week.data}
+          onCancel={() => setWithdrawing(false)}
+          onWithdrawn={() => {
+            setWithdrawing(false);
+            setToast('Submission withdrawn. This week is a draft again and can be edited.');
           }}
         />
       ) : null}
