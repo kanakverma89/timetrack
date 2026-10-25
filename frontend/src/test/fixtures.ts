@@ -13,6 +13,7 @@ export const USER: User = {
   email: 'employee@example.test',
   display_name: 'Alex Employee',
   role: 'EMPLOYEE',
+  must_change_password: false,
 };
 
 export const META: Meta = {
@@ -137,6 +138,7 @@ export const MANAGER: User = {
   email: 'manager@example.test',
   display_name: 'Morgan Manager',
   role: 'MANAGER',
+  must_change_password: false,
 };
 
 export const ALEX = { id: 'u-alex', display_name: 'Alex Employee', email: 'employee@example.test' };
@@ -173,3 +175,11 @@ export function approvalDetail(overrides: Partial<ApprovalDetail> = {}): Approva
     ...overrides,
   };
 }
+
+export const ADMIN: User = {
+  id: '00000000-0000-4000-8000-0000000000ad',
+  email: 'admin@example.test',
+  display_name: 'Avery Admin',
+  role: 'ADMIN',
+  must_change_password: false,
+};

@@ -46,3 +46,26 @@ def test_limiter_reset_clears_failures() -> None:
     assert limiter.is_blocked("k")
     limiter.reset("k")
     assert not limiter.is_blocked("k")
+
+
+def test_limiter_memory_is_bounded_even_under_a_flood_of_distinct_keys() -> None:
+    limiter = FailureLimiter(3, 60, max_keys=50)
+    for n in range(5_000):  # an attacker inventing a new email for every attempt
+        limiter.record_failure(f"203.0.113.9|user{n}@example.test")
+    assert limiter.tracked_keys() <= 50
+
+
+def test_limiter_eviction_drops_expired_keys_before_any_live_block() -> None:
+    now = [0.0]
+    limiter = FailureLimiter(2, 60, clock=lambda: now[0], max_keys=10)
+    for n in range(5):
+        limiter.record_failure(f"old{n}")  # one failure each, at t=0
+    now[0] = 100.0  # ...which have expired by now
+    for n in range(4):
+        limiter.record_failure(f"live{n}")
+        limiter.record_failure(f"live{n}")  # two failures: blocked
+    for n in range(5):
+        limiter.record_failure(f"new{n}")  # pushes the table past its cap
+    assert all(limiter.is_blocked(f"live{n}") for n in range(4))  # no live block was forgotten
+    assert limiter.tracked_keys() <= 10
+    assert not limiter.is_blocked("old0")  # the expired ones are what went

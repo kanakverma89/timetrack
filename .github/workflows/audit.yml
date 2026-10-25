@@ -1,0 +1,43 @@
+name: dependency-audit
+
+# Separate from ci.yml on purpose: a newly published advisory should be visible (weekly run, and on
+# dependency changes) without turning every unrelated push red.
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+  push:
+    paths:
+      - "backend/pyproject.toml"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - ".github/workflows/audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e backend pip-audit
+      - name: Audit installed Python dependencies
+        run: pip-audit --skip-editable
+
+  node:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Audit all dependencies (production and development)
+        run: npm audit --audit-level=low

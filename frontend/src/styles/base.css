@@ -89,3 +89,8 @@ a {
 abbr[title] {
   text-decoration: none;
 }
+
+/* Set on <body> while a modal is open so the page behind does not scroll. */
+body.modal-open {
+  overflow: hidden;
+}

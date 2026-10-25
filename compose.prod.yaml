@@ -1,0 +1,66 @@
+# Production-shaped stack: database (private), one-shot migrations, API, web.
+# Usage: docker compose -f compose.prod.yaml --env-file .env.prod up -d --build --wait
+# Only the web container publishes a port; put TLS termination in front of it.
+name: timetrack-prod
+
+x-api-env: &api-env
+  APP_ENV: production
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-timetrack}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-timetrack}
+  SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET (>= 32 random characters)}
+  CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS to the public https origin}
+  BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Asia/Kolkata}
+  WEEK_START_DAY: ${WEEK_START_DAY:-MONDAY}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-timetrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-timetrack}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: ./backend
+    environment: *api-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  db-data:

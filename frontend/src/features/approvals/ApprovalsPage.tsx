@@ -5,6 +5,7 @@ import type { WeekStatus } from '../../api/types';
 import { EmptyState } from '../../components/EmptyState';
 import { ErrorState } from '../../components/ErrorState';
 import { LiveRegion } from '../../components/LiveRegion';
+import { Pager } from '../../components/Pager';
 import { useMeta } from '../../hooks/useMeta';
 import { formatTimestamp, formatWeekRange, isValidIsoDate } from '../../utils/dates';
 import { formatHours } from '../../utils/hours';
@@ -54,7 +55,6 @@ export function ApprovalsPage() {
   };
 
   const data = list.data;
-  const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
   const decided = status !== 'SUBMITTED';
 
   return (
@@ -126,7 +126,7 @@ export function ApprovalsPage() {
         )
       ) : (
         <>
-          <table className="approvals-table" data-testid="approvals-table">
+          <table className="data-table" data-testid="approvals-table">
             <caption className="sr-only">Timesheets, oldest submission first</caption>
             <thead>
               <tr>
@@ -178,28 +178,13 @@ export function ApprovalsPage() {
             </tbody>
           </table>
 
-          <nav className="pager" aria-label="Pagination">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={page <= 1}
-              onClick={() => update({ page: String(page - 1) })}
-            >
-              Previous page
-            </button>
-            <span>
-              Page {data.page} of {pages} · {data.total}{' '}
-              {data.total === 1 ? 'timesheet' : 'timesheets'}
-            </span>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={page >= pages}
-              onClick={() => update({ page: String(page + 1) })}
-            >
-              Next page
-            </button>
-          </nav>
+          <Pager
+            page={data.page}
+            pageSize={data.page_size}
+            total={data.total}
+            noun="timesheet"
+            onPage={(next) => update({ page: String(next) })}
+          />
         </>
       )}
     </div>

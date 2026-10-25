@@ -158,3 +158,8 @@ class StaleEntryError(ConflictError):
 class InvalidTransitionError(ConflictError):
     code = "INVALID_TRANSITION"
     message = "The week is not in a state that allows this action."
+
+
+class PasswordChangeRequiredError(ForbiddenError):
+    code = "PASSWORD_CHANGE_REQUIRED"
+    message = "You must choose a new password before continuing."

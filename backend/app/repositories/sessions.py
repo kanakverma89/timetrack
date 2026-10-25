@@ -39,3 +39,15 @@ def revoke(db: Session, digest: str) -> None:
         .where(AuthSession.token_digest == digest, AuthSession.revoked_at.is_(None))
         .values(revoked_at=_now())
     )
+
+
+def revoke_all_for_user(db: Session, user_id: uuid.UUID, *, keep_digest: str | None = None) -> int:
+    """Revoke every live session of a user (optionally keeping the one making the request)."""
+    stmt = (
+        update(AuthSession)
+        .where(AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None))
+        .values(revoked_at=_now())
+    )
+    if keep_digest is not None:
+        stmt = stmt.where(AuthSession.token_digest != keep_digest)
+    return int(db.execute(stmt).rowcount or 0)  # type: ignore[attr-defined]

@@ -316,6 +316,90 @@ def main() -> int:
             {200},
         )
 
+        # Administration and reports (Phase 7): an administrator's session.
+        admin = httpx.Client(base_url=client.base_url, headers=HEADERS, timeout=30)
+        admin.post(
+            "/auth/login", json={"email": "admin@example.test", "password": PASSWORD}
+        ).raise_for_status()
+        timer.run("GET /admin/users (page of 20)", 100, lambda _: admin.get("/admin/users"), {200})
+        timer.run(
+            "GET /admin/users?search=",
+            100,
+            lambda i: admin.get("/admin/users", params={"search": f"perf0{i % 5}"}),
+            {200},
+        )
+        timer.run("GET /admin/projects", 100, lambda _: admin.get("/admin/projects"), {200})
+        timer.run("GET /admin/policy", 100, lambda _: admin.get("/admin/policy"), {200})
+        timer.run(
+            "PUT /admin/policy",
+            50,
+            lambda i: admin.put(
+                "/admin/policy",
+                json={
+                    "max_hours_per_entry": "12.00",
+                    "max_hours_per_day": f"{14 + i % 3}.00",
+                    "max_hours_per_week": "60.00",
+                    "description_max_length": 200,
+                },
+            ),
+            {200},
+        )
+        created_users: list[str] = []
+
+        def create_user(i: int) -> httpx.Response:
+            response = admin.post(
+                "/admin/users",
+                json={
+                    "email": f"newperf{i:03d}@example.test",
+                    "display_name": f"New Perf {i}",
+                    "role": "EMPLOYEE",
+                    "manager_id": None,
+                },
+            )
+            if response.status_code == 201:
+                created_users.append(response.json()["user"]["id"])
+            return response
+
+        # Includes hashing the generated temporary password (Argon2id is deliberately slow).
+        timer.run("POST /admin/users (incl. Argon2id)", 30, create_user, {201})
+        timer.run(
+            "PATCH /admin/users/{id}",
+            30,
+            lambda i: admin.patch(
+                f"/admin/users/{created_users[i]}", json={"display_name": f"Renamed {i}"}
+            ),
+            {200},
+        )
+        timer.run("GET /admin/audit (page of 20)", 100, lambda _: admin.get("/admin/audit"), {200})
+
+        window = {
+            "date_from": (FIRST_MONDAY - timedelta(weeks=args.weeks)).isoformat(),
+            "date_to": FIRST_MONDAY.isoformat(),
+        }
+
+        def report_by(group: str) -> Callable[[int], httpx.Response]:
+            return lambda _: admin.get("/reports/hours", params={**window, "group_by": group})
+
+        for group in ("employee", "project", "earning_code", "week"):
+            timer.run(
+                f"GET /reports/hours (admin, by {group}, {args.weeks} wk)",
+                30,
+                report_by(group),
+                {200},
+            )
+        timer.run(
+            "GET /reports/hours (manager, by employee)",
+            30,
+            lambda _: boss.get("/reports/hours", params={**window, "group_by": "employee"}),
+            {200},
+        )
+        timer.run(
+            "GET /reports/hours.csv (admin, by employee)",
+            30,
+            lambda _: admin.get("/reports/hours.csv", params={**window, "group_by": "employee"}),
+            {200},
+        )
+
         # Light parallel load: 8 concurrent clients reading different weeks.
         def worker(_: int) -> list[float]:
             local = httpx.Client(
@@ -350,14 +434,14 @@ def main() -> int:
         f"{os.cpu_count()} CPUs, 1 uvicorn worker, local PostgreSQL"
     )
     print(
-        f"{'endpoint':<44}{'n':>5}{'p50':>9}{'p95':>9}{'p99':>9}{'max':>9}"
+        f"{'endpoint':<56}{'n':>5}{'p50':>9}{'p95':>9}{'p99':>9}{'max':>9}"
         f"   vs {args.budget_ms:.0f} ms"
     )
     failed = False
     for label, n, p50, p95, p99, worst in timer.rows:
         verdict = "ok" if p95 <= args.budget_ms else "OVER BUDGET"
         failed |= p95 > args.budget_ms
-        print(f"{label:<44}{n:>5}{p50:>9.1f}{p95:>9.1f}{p99:>9.1f}{worst:>9.1f}   {verdict}")
+        print(f"{label:<56}{n:>5}{p50:>9.1f}{p95:>9.1f}{p99:>9.1f}{worst:>9.1f}   {verdict}")
     return 1 if failed else 0
 
 

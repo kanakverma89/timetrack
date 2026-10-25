@@ -25,7 +25,9 @@ function setBackgroundInert(inert: boolean) {
   if (!root) return;
   if (inert) root.setAttribute('inert', '');
   else root.removeAttribute('inert');
-  document.body.style.overflow = inert ? 'hidden' : '';
+  // A class, not an inline style: the production Content-Security-Policy has no 'unsafe-inline',
+  // and Safari-family browsers treat style assignments through the DOM as inline styles.
+  document.body.classList.toggle('modal-open', inert);
 }
 
 interface Props {

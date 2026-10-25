@@ -5,8 +5,10 @@ FastAPI backend, PostgreSQL, Playwright end-to-end tests. See [`spec.md`](spec.m
 specification and [`docs/implementation-report.md`](docs/implementation-report.md) for what is
 built and verified.
 
-**Status:** Phases 0–6 (foundation, Employee Dashboard, Day- and Week-mode time entry, weekly
-submission, and manager approvals). Administration and hardening (Phase 7) are not implemented yet.
+**Status:** Phases 0–7 (foundation, Employee Dashboard, Day- and Week-mode time entry, weekly
+submission, manager approvals, and administration, reporting and hardening). Not provided: SSO/MFA,
+TLS termination, email delivery of notifications, delegation of approvals — see
+[`docs/operations.md`](docs/operations.md) and [`docs/security-review.md`](docs/security-review.md).
 
 ## Prerequisites
 
@@ -72,6 +74,8 @@ Sample weeks for `employee@example.test` (Monday-first): `2026-10-19` (draft), `
 | Frontend lint/format/types | `frontend$ npm run lint && npm run format:check && npm run typecheck` |
 | Frontend unit tests | `frontend$ npm test` |
 | Frontend build | `frontend$ npm run build` |
+| Dependency audit | `backend$ .venv/bin/pip install pip-audit && .venv/bin/pip-audit --skip-editable` and `frontend$ npm audit` (also a weekly workflow) |
+| Backup/restore drill | `scripts/backup-restore-drill.sh` (dump, restore to a throwaway database, compare) |
 | Performance (p95 vs 500 ms) | `backend$ .venv/bin/python scripts/perf_check.py` (see `docs/performance.md`) |
 | E2E (all browsers) | `frontend$ npm run test:e2e` — add `-- --project=chromium` for one browser |
 
@@ -79,6 +83,17 @@ Backend tests and E2E need `DATABASE_URL`/`SEED_PASSWORD` exported (or a root `.
 loads it automatically). E2E recreates and seeds the disposable `timetrack_e2e` database on every
 run. Destructive helpers only accept database names ending in `_test` or `_e2e`.
 First-time Playwright setup: `cd frontend && npx playwright install chromium firefox webkit`.
+
+## Running it for real
+
+[`docs/operations.md`](docs/operations.md) covers deployment (`compose.prod.yaml`: database, one-shot
+migrations, API, nginx), configuration, creating the first administrator, backups and restore,
+retention (`backend/scripts/maintain.py purge | anonymise-user | create-admin`) and known limits.
+There is no default account in production; sign-in for the seeded development accounts uses
+`SEED_PASSWORD`, which the seed refuses to use in production.
+
+Administrators manage people, teams, projects and tasks, earning codes and the hour policy under
+**Admin**, and read the **Audit log**; managers and administrators use **Reports** (CSV export).
 
 ## Layout
 
