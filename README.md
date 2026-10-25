@@ -10,6 +10,25 @@ submission, manager approvals, and administration, reporting and hardening). Not
 TLS termination, email delivery of notifications, delegation of approvals — see
 [`docs/operations.md`](docs/operations.md) and [`docs/security-review.md`](docs/security-review.md).
 
+## Live demo
+
+**https://timetrack-demo-kanak.vercel.app** — a free-tier deployment (Vercel frontend, Render API, Neon PostgreSQL).
+All data is synthetic.
+
+| Role | Email | Name | What to try |
+| --- | --- | --- | --- |
+| Employee | `employee@example.test` | Alex Employee | add hours (Day and Week mode), submit a week, see a rejection and resubmit |
+| Manager | `manager@example.test` | Morgan Manager | **Approvals**: review, approve or reject Alex's and Sam's weeks; **Reports** with CSV export |
+
+**Password for both:** `REDACTED-DEMO-PASSWORD`
+
+- **The first visit after a quiet spell can take about a minute.** The free API host puts the service to sleep after
+  15 minutes without traffic; later requests are fast.
+- It is a shared demo: anyone with these logins can add and submit entries, so what you see may not be what you left.
+- The administrator account is not published. How the demo is set up, its limits and how to reset it:
+  [`docs/deployment-free-tier.md`](docs/deployment-free-tier.md). A walkthrough of every role and scenario:
+  [`docs/user-guide.md`](docs/user-guide.md).
+
 ## Prerequisites
 
 - Docker (for PostgreSQL 16), Python ≥ 3.12, Node ≥ 22.22 (22, 24 or 26; `frontend/.nvmrc` pins 22).
