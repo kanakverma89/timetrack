@@ -30,3 +30,4 @@ frontend/blob-report/
 
 # local dev process state
 .dev/
+frontend/test-results-deployed/
