@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TimeTrack — Complete Guide</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+  :root { --ink:#17262b; --muted:#4a5a62; --accent:#0f766e; --soft:#e0f2f1; --line:#cfd8dc; --warn:#fff4e0; --warnb:#b45309; --bad:#fee2e2; --code:#f1f5f6; }
+  * { box-sizing: border-box; }
+  body { font: 10.5pt/1.5 "Helvetica Neue", Arial, sans-serif; color: var(--ink); margin: 0; }
+  h1 { font-size: 22pt; color: var(--accent); margin: 0 0 6mm; border-bottom: 3px solid var(--accent); padding-bottom: 3mm; page-break-before: always; }
+  h1.first { page-break-before: avoid; }
+  h2 { font-size: 14.5pt; color: var(--accent); margin: 8mm 0 2mm; page-break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 5mm 0 1.5mm; page-break-after: avoid; }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1mm; }
+  code { font: 9pt Menlo, Consolas, monospace; background: var(--code); padding: 0.4mm 1.2mm; border-radius: 3px; }
+  pre { font: 8.6pt/1.4 Menlo, Consolas, monospace; background: var(--code); border: 1px solid var(--line); border-radius: 6px; padding: 3mm; margin: 0 0 3.5mm; white-space: pre-wrap; word-break: break-word; page-break-inside: avoid; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 0 0 4mm; font-size: 9.4pt; }
+  th, td { border: 1px solid var(--line); padding: 1.6mm 2.2mm; vertical-align: top; text-align: left; }
+  th { background: var(--soft); }
+  tr { page-break-inside: avoid; }
+  .cover { height: 245mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover h1 { font-size: 34pt; border: 0; page-break-before: avoid; margin-bottom: 2mm; }
+  .cover .sub { font-size: 15pt; color: var(--muted); margin-bottom: 14mm; }
+  .cover .meta { color: var(--muted); font-size: 10pt; }
+  .box { border-left: 4px solid var(--accent); background: var(--soft); padding: 3mm 4mm; margin: 0 0 4mm; border-radius: 0 6px 6px 0; page-break-inside: avoid; }
+  .warn { border-left-color: var(--warnb); background: var(--warn); }
+  .bad { border-left-color: #9b1c1c; background: var(--bad); }
+  .toc a { color: var(--ink); text-decoration: none; }
+  .toc li { margin-bottom: 1.2mm; }
+  .toc .sub { margin-left: 5mm; color: var(--muted); font-size: 9.5pt; }
+  .diagram { margin: 2mm 0 5mm; page-break-inside: avoid; text-align: center; }
+  .diagram svg { max-width: 100%; height: auto; }
+  .tag { display:inline-block; font-size: 8pt; padding: 0.3mm 1.6mm; border-radius: 3px; background: var(--soft); color: var(--accent); font-weight: 600; }
+  .small { font-size: 9pt; color: var(--muted); }
+  dl dt { font-weight: 700; margin-top: 2mm; }
+  dl dd { margin: 0 0 1.5mm 5mm; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<div class="cover">
+  <h1 class="first">TimeTrack</h1>
+  <div class="sub">Complete guide: the application, how it is built and tested, how changes reach production, how data gets into the database, and every third-party service involved</div>
+  <div class="meta">
+    Live demo: https://timetrack-demo-kanak.vercel.app<br>
+    Source: github.com/kanakverma89/timetrack (private repository)<br>
+    Written 25 October 2026, from the repository as it stood at the end of Phase 7 and the free-tier deployment.<br>
+    Free-tier limits quoted here were read from the providers' own pages on that date. They change; check the current terms before relying on them.
+  </div>
+</div>
+
+<!-- ============================ TOC ============================ -->
+<h1>Contents</h1>
+<ol class="toc">
+  <li><a href="#what">What TimeTrack is</a></li>
+  <li><a href="#does">What it does, role by role</a></li>
+  <li><a href="#arch">How it is built (architecture)</a></li>
+  <li><a href="#scenarios">All the scenarios</a></li>
+  <li><a href="#github">GitHub and its workflows</a></li>
+  <li><a href="#change">The process of making a change</a></li>
+  <li><a href="#data">How data gets into the database</a></li>
+  <li><a href="#deploy">How to deploy: the full process</a></li>
+  <li><a href="#third">Third-party services and tools in detail</a>
+    <div class="sub">Neon · Vercel · Render · GitHub · Docker images · libraries · test and security tools</div></li>
+  <li><a href="#ops">Running it afterwards: operations, costs, limits, risks</a></li>
+  <li><a href="#appx">Appendix: commands, file map, glossary</a></li>
+</ol>
+
+<!-- ============================ 1 WHAT ============================ -->
+<h1 id="what">1. What TimeTrack is</h1>
+<p>TimeTrack is a <b>weekly timesheet application</b>. People record the hours they worked against projects (and the tasks inside them), submit the week, and a manager approves or rejects it. Administrators manage the people and reference data and can read an audit log. Managers and administrators can run reports.</p>
+<p>It was built as an independent, neutral-branded learning project from a written specification (<code>spec.md</code>), in seven phases, with real automated tests at every layer. It is not a copy of any company's product.</p>
+
+<h2>The life of a week</h2>
+<pre>DRAFT ──submit──▶ SUBMITTED ──approve──▶ APPROVED   (final, read-only)
+   ▲                  │
+   └── (edit, fix) ◀── reject  (REJECTED: editable again, then resubmit)</pre>
+
+<h2>Three roles</h2>
+<table>
+<tr><th>Role</th><th>Who</th><th>Can</th></tr>
+<tr><td>Employee</td><td>Anyone who logs time</td><td>Log, edit, delete and submit their own hours; change their own password.</td></tr>
+<tr><td>Manager</td><td>Someone with direct reports</td><td>Everything an employee can, plus review, approve or reject the weeks of the people who <b>report to them</b>, and run reports for those people.</td></tr>
+<tr><td>Administrator</td><td>Whoever runs the system</td><td>Everything a manager can for <b>everyone</b>, plus create and manage users, teams, projects, tasks, earning codes, hour policy, and read the audit log.</td></tr>
+</table>
+<div class="box"><b>Two rules that surprise people.</b> (1) Team membership gives <i>no</i> approval authority: only a person's assigned manager (or an administrator) can approve their week. (2) Nobody can approve their <i>own</i> week, not even an administrator.</div>
+
+<h2>The size of the project</h2>
+<table>
+<tr><th>Measure</th><th>Value</th></tr>
+<tr><td>Phases delivered</td><td>0 to 7 (foundation, dashboard, day-mode entry, week-mode entry, submission, approvals, administration/reporting/hardening), plus a free-tier deployment</td></tr>
+<tr><td>Automated tests</td><td>540 backend (pytest, real PostgreSQL), 254 component tests (Vitest), 369 end-to-end tests (Playwright on Chromium, Firefox and WebKit; 362 pass, 7 are deliberately skipped)</td></tr>
+<tr><td>Database migrations</td><td>5 (Alembic revisions 0001 to 0005)</td></tr>
+<tr><td>Documentation</td><td>About 1,800 lines in <code>docs/</code>: architecture, 72 numbered design decisions, API contracts, data model, testing strategy, security review, operations guide, performance report, user guide, free-tier deployment guide</td></tr>
+</table>
+
+<!-- ============================ 2 DOES ============================ -->
+<h1 id="does">2. What it does, role by role</h1>
+
+<h2>Employee</h2>
+<ul>
+<li><b>Timesheet dashboard.</b> Shows one week at a time with a card per day, a weekly summary (total, capped, non-capped, draft entries) and the entry list. A week navigator moves between weeks; the address (<code>?week=YYYY-MM-DD</code>) can be bookmarked.</li>
+<li><b>Day mode</b> (add one entry): date, hours (up to two decimals, above 0, at most the policy maximum, 24 by default), project (searchable by code or name), task (required when the project has active tasks), earning code and a description.</li>
+<li><b>Week mode</b> (add several days at once): one project/task/code and an hours value per day, saved <b>all or nothing</b>. Errors point at the day that failed; "already logged" figures stop accidental double entry. It only adds; it never replaces existing entries.</li>
+<li><b>Edit and delete</b> entries while the week is a draft or rejected. An entry carries a version number, so if it changed elsewhere you get a "changed elsewhere" message instead of silently overwriting.</li>
+<li><b>Submit.</b> A dialog shows totals and takes an optional comment. The server re-checks every entry against the current policy (hours per entry, per day, per week) and either submits the whole week or explains exactly what to fix. After submission the week is read-only.</li>
+<li><b>Rejections.</b> A banner shows the reason, who rejected it and when; the week becomes editable; <b>Resubmit week</b> sends it again.</li>
+<li><b>Change password</b> (12+ characters, not a common password, not containing the name or email). Other devices are signed out.</li>
+</ul>
+
+<h2>Manager</h2>
+<ul>
+<li><b>Approvals</b> list with a badge counting weeks waiting; filter by status (waiting, approved, rejected) and by week; oldest submission first; paged.</li>
+<li><b>Review page</b>: employee, every entry, their comment, and the history of previous decisions.</li>
+<li><b>Approve</b> (optional comment) or <b>Reject</b> (a reason of at least 5 characters is required and shown to the employee). Two reviewers acting at once produce exactly one decision.</li>
+<li><b>Reports</b>: hours by person, project, earning code or week, for a date range of up to 366 days; Approved weeks by default (Submitted and Rejected can be ticked in); drafts are never counted; totals cover all rows; <b>CSV export</b> of the same query.</li>
+</ul>
+
+<h2>Administrator</h2>
+<ul>
+<li><b>Users.</b> Create a person (email, name, role, optional manager). The server generates a <b>temporary password shown exactly once</b>; the person must replace it at first sign-in. Edit name, role and manager; deactivate or reactivate (sessions end immediately); reset a password.</li>
+<li><b>Safety rails.</b> You cannot change your own role, deactivate yourself or reset your own password; the last active administrator cannot be removed (race-safe); a manager with active reports cannot be deactivated until the reports are reassigned.</li>
+<li><b>Teams</b> (organisational grouping only), <b>Projects and Tasks</b>, <b>Earning codes</b> (capped or non-capped; the classification is locked once any entry uses the code).</li>
+<li><b>Hour policy</b>: maximum hours per entry, per day, per week and description length. It overrides the server's configured defaults and applies at once; <i>Restore defaults</i> removes the override.</li>
+<li><b>Audit log</b>: every administrative change, newest first, with who did it and before/after values. It stores people by id and shows their <i>current</i> names, never passwords, so an anonymised person reads "Former employee".</li>
+</ul>
+
+<h2>Cross-cutting behaviour</h2>
+<ul>
+<li><b>Accessibility.</b> Real tables that turn into labelled cards on phones, a focus-trapping modal that returns focus, errors that receive focus, automated axe checks on every page and dialog. (No screen reader or real phone was used in testing.)</li>
+<li><b>Safety against mistakes.</b> Double-clicks send one request; submissions and decisions accept an <code>Idempotency-Key</code> so a retry is harmless; a week is locked in the database while it changes.</li>
+<li><b>Notifications.</b> A submission or decision writes a row to an outbox table; a background step hands it to a delivery adapter (currently a log line, no email).</li>
+</ul>
+
+<!-- ============================ 3 ARCH ============================ -->
+<h1 id="arch">3. How it is built (architecture)</h1>
+
+<h2>The stack</h2>
+<table>
+<tr><th>Layer</th><th>Technology</th><th>Why it is there</th></tr>
+<tr><td>Frontend</td><td>React 19, TypeScript, Vite, TanStack Query, React Router</td><td>The user interface. TanStack Query handles server data (caching, retries). Hand-written accessible components, no UI kit.</td></tr>
+<tr><td>Backend</td><td>Python 3.12, FastAPI, Pydantic, uvicorn</td><td>The HTTP API, validation and business rules.</td></tr>
+<tr><td>Data access</td><td>SQLAlchemy 2 (synchronous), psycopg 3, Alembic</td><td>Queries and transactions; Alembic applies schema changes (migrations).</td></tr>
+<tr><td>Database</td><td>PostgreSQL 16</td><td>Row locks, triggers (append-only audit), CHECK constraints, JSON columns.</td></tr>
+<tr><td>Passwords</td><td>Argon2id (argon2-cffi)</td><td>Slow, memory-hard hashing so stolen hashes are expensive to crack.</td></tr>
+<tr><td>Testing</td><td>pytest, Vitest, Playwright, axe-core</td><td>Backend, component, browser and accessibility tests.</td></tr>
+</table>
+
+<div class="diagram">
+<svg viewBox="0 0 760 250" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" font-size="12">
+  <rect x="10" y="85" width="120" height="70" rx="8" fill="#e0f2f1" stroke="#0f766e"/><text x="70" y="115" text-anchor="middle" font-weight="700">Browser</text><text x="70" y="133" text-anchor="middle" font-size="10">React app</text>
+  <rect x="190" y="85" width="150" height="70" rx="8" fill="#e0f2f1" stroke="#0f766e"/><text x="265" y="112" text-anchor="middle" font-weight="700">Vercel</text><text x="265" y="130" text-anchor="middle" font-size="10">static files + /api proxy</text>
+  <rect x="400" y="85" width="150" height="70" rx="8" fill="#e0f2f1" stroke="#0f766e"/><text x="475" y="112" text-anchor="middle" font-weight="700">Render</text><text x="475" y="130" text-anchor="middle" font-size="10">FastAPI in Docker</text>
+  <rect x="610" y="85" width="140" height="70" rx="8" fill="#e0f2f1" stroke="#0f766e"/><text x="680" y="112" text-anchor="middle" font-weight="700">Neon</text><text x="680" y="130" text-anchor="middle" font-size="10">PostgreSQL 16</text>
+  <line x1="130" y1="120" x2="190" y2="120" stroke="#17262b" marker-end="url(#a)"/><line x1="340" y1="120" x2="400" y2="120" stroke="#17262b" marker-end="url(#a)"/><line x1="550" y1="120" x2="610" y2="120" stroke="#17262b" marker-end="url(#a)"/>
+  <text x="160" y="110" text-anchor="middle" font-size="10">https</text><text x="370" y="110" text-anchor="middle" font-size="10">rewrite</text><text x="580" y="110" text-anchor="middle" font-size="10">TLS</text>
+  <text x="380" y="40" text-anchor="middle" font-size="13" font-weight="700">The live deployment: one origin for the browser</text>
+  <text x="380" y="200" text-anchor="middle" font-size="10.5">The browser only ever talks to the Vercel address. Vercel forwards /api/* to Render, so the session cookie (SameSite=Lax)</text>
+  <text x="380" y="216" text-anchor="middle" font-size="10.5">is always sent and the API's CORS/CSRF origin check sees one origin. Render connects to Neon over TLS.</text>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#17262b"/></marker></defs>
+</svg>
+</div>
+
+<h2>Inside the backend</h2>
+<p>Code flows downwards only: <b>api</b> (routes and request/response shapes) → <b>services</b> (business rules and transactions) → <b>repositories</b> (queries) → <b>models</b> (tables). Reference-data routes call repositories directly, because a pass-through service would add nothing.</p>
+<ul>
+<li><b>Authentication.</b> Email and password; passwords hashed with Argon2id. A successful sign-in creates a server-side session; the browser holds a random token in an <code>HttpOnly</code>, <code>SameSite=Lax</code> cookie (<code>Secure</code> in production). The database stores only an HMAC digest of the token, so a database leak alone yields no usable sessions.</li>
+<li><b>CSRF protection.</b> Every state-changing request must carry <code>X-Requested-With: timetrack</code> and, if it has an <code>Origin</code> header, that origin must be in the <code>CORS_ORIGINS</code> allow-list. A cross-site page cannot add a custom header.</li>
+<li><b>Authorization.</b> Role guards on whole routers (admin, reports, approvals) and one pure function (<code>review_policy</code>) that decides who may review whom. A test lists <i>every</i> route with its allowed roles and fails if a route is missing.</li>
+<li><b>Error envelope.</b> Every error has one shape: <code>{"error": {"code","message","field_errors","request_id"}}</code>. Unknown or foreign resources return 404 (not 403) so ids cannot be probed.</li>
+<li><b>Concurrency.</b> A week row is locked <code>SELECT … FOR UPDATE</code> while it changes; entries carry an optimistic version; idempotency keys are stored in their own table.</li>
+<li><b>Audit.</b> Three tables (<code>approval_events</code>, <code>time_entry_events</code>, <code>config_audit_events</code>) are protected by a database trigger that refuses UPDATE and DELETE, so even a buggy deployment cannot rewrite history.</li>
+<li><b>Configuration.</b> All settings come from environment variables. In production mode the app <i>refuses to start</i> with a short or placeholder secret, a placeholder database password or an origin that is not <code>https://</code>, and says which.</li>
+</ul>
+
+<h2>The main tables</h2>
+<table>
+<tr><th>Table</th><th>Holds</th></tr>
+<tr><td>users, auth_sessions</td><td>Accounts (with <code>manager_id</code>, <code>must_change_password</code>) and login sessions (token digests only).</td></tr>
+<tr><td>teams, team_memberships</td><td>Organisational groups.</td></tr>
+<tr><td>projects, project_tasks, earning_codes</td><td>What time can be booked against; classification capped / non-capped.</td></tr>
+<tr><td>timesheet_weeks, time_entries</td><td>One row per employee per week; entries with hours as <code>NUMERIC(5,2)</code>, never floating point.</td></tr>
+<tr><td>approval_events, time_entry_events, config_audit_events</td><td>Append-only history.</td></tr>
+<tr><td>notification_outbox, idempotency_keys</td><td>Reliable notification hand-off; safe retries.</td></tr>
+<tr><td>policy_settings</td><td>One row: the administrator's hour policy.</td></tr>
+<tr><td>alembic_version</td><td>Which migration the database is at (currently 0005).</td></tr>
+</table>
+
+<h2>Environments</h2>
+<table>
+<tr><th>Where</th><th>Database</th><th>Used for</th></tr>
+<tr><td>Your laptop (development)</td><td><code>timetrack</code> in a local Docker PostgreSQL</td><td>Manual use with seeded synthetic data (<code>scripts/dev-up.sh</code>).</td></tr>
+<tr><td>Tests</td><td><code>timetrack_test</code>, recreated every run</td><td>pytest.</td></tr>
+<tr><td>End-to-end</td><td><code>timetrack_e2e</code>, recreated and seeded every run</td><td>Playwright. Scripts refuse to drop any database whose name does not end in <code>_test</code> or <code>_e2e</code>.</td></tr>
+<tr><td>Live demo</td><td>Neon project <code>timetrack-demo</code>, database <code>neondb</code></td><td>The public deployment.</td></tr>
+</table>
+
+<!-- ============================ 4 SCENARIOS ============================ -->
+<h1 id="scenarios">4. All the scenarios</h1>
+<p>The demo accounts are synthetic: <code>employee@example.test</code> (Alex), <code>employee2@example.test</code> (Sam), <code>employee3@example.test</code> (Taylor, who reports to a different manager), <code>manager@example.test</code> (Morgan, manages Alex and Sam), <code>manager2@example.test</code> (Riley, manages Taylor) and an administrator. All share the password set when the data was seeded; the published employee and manager logins are in the README.</p>
+<p class="small">Tip: use two browser profiles (or a normal and a private window) to be signed in as an employee and their manager at once.</p>
+
+<h2>A. The happy path (Alex, Morgan)</h2>
+<ol>
+<li>Alex opens the current week, adds entries in Day mode and Week mode, then clicks <b>Submit week</b>.</li>
+<li>Morgan sees the week under <b>Approvals</b> (badge count), opens <b>Review</b> and clicks <b>Approve</b>.</li>
+<li>Alex refreshes: the banner says approved, and Add/Edit/Delete are gone.</li>
+<li>Morgan opens <b>Reports</b> for that week: Alex's hours appear (Approved is the default filter).</li>
+</ol>
+
+<h2>B. Rejection and resubmission</h2>
+<ol>
+<li>Alex submits. Morgan chooses <b>Reject</b> with a reason such as "Please recheck Tuesday's hours."</li>
+<li>Alex sees the rejection banner and reason, fixes Tuesday and clicks <b>Resubmit week</b>.</li>
+<li>Morgan approves. The review page history shows submitted → rejected → submitted → approved.</li>
+</ol>
+
+<h2>C. Onboarding a new hire (administrator)</h2>
+<ol>
+<li>Admin → Users → <b>Add user</b>: email, name, role Employee, manager Morgan. A dialog shows the temporary password once; copy it and hand it over privately.</li>
+<li>The new hire signs in with it and is taken to <b>Choose a new password</b>; nothing else in the app works until it is changed (the API enforces this too, with a 403 on every other route).</li>
+<li>Their submitted weeks appear for Morgan and not for Riley.</li>
+</ol>
+
+<h2>D. A leaver</h2>
+<p>The administrator unticks <b>Active</b> on the person. Their open session ends at once, they cannot sign in (the message is the same as for a wrong password), their history stays. Reactivating restores access with the same password. If the identity must also be removed later, <code>scripts/maintain.py anonymise-user</code> replaces name and email with "Former employee" while keeping hours and decisions.</p>
+
+<h2>E. A forgotten password</h2>
+<p>Admin → Users → <b>Reset password</b>. A new one-time password is shown; the person is signed out everywhere and must change it at next sign-in. An administrator cannot reset their own password this way (they use <i>Change password</i>).</p>
+
+<h2>F. Changing the rules</h2>
+<ol>
+<li>Admin → Policy: set the per-entry maximum to 8. Alex tries to save 9 hours → refused with the limit named.</li>
+<li>A previously saved 10-hour entry now blocks submission until fixed (submission re-checks every entry).</li>
+<li><b>Restore defaults</b> removes the override. Both changes are in the Audit log with before and after values.</li>
+</ol>
+
+<h2>G. A manager's reach</h2>
+<p>Taylor (reports to Riley) submits. Morgan does <b>not</b> see it, Riley does, the administrator does. Morgan's reports include Alex and Sam only. Asking for Taylor's data by id returns an empty result or 404, never the data.</p>
+
+<h2>H. Retiring a project</h2>
+<p>Add a project with a task; Alex can pick it and must choose the task. Deactivate the project: it disappears from the entry form but Alex's old entries still show it.</p>
+
+<h2>I. Edge cases the tests cover</h2>
+<table>
+<tr><th>Situation</th><th>What happens</th></tr>
+<tr><td>Two browser windows edit the same entry</td><td>The second save gets a "changed elsewhere" message (HTTP 409).</td></tr>
+<tr><td>Double-click on Save, Submit or Create user</td><td>One request, one record.</td></tr>
+<tr><td>Two managers decide the same week at once</td><td>One wins; the other is told it was already decided.</td></tr>
+<tr><td>Week mode with one invalid day</td><td>Nothing is saved; the error points at that day.</td></tr>
+<tr><td>Employee opens an admin address</td><td>"You do not have access" in the page and 403 from the API.</td></tr>
+<tr><td>Five wrong passwords for one account</td><td>429 "Too many failed attempts" for 15 minutes.</td></tr>
+<tr><td>Request without the CSRF header, or from a foreign origin</td><td>403.</td></tr>
+<tr><td>Hours of 25, 7.555 or 0</td><td>Field error naming the rule.</td></tr>
+<tr><td>Last administrator removed (two at once)</td><td>Refused (row lock; reproduced by a two-thread test).</td></tr>
+<tr><td>Spreadsheet formula in a project name (<code>=1+1</code>)</td><td>CSV cell is exported with a leading quote so Excel does not run it.</td></tr>
+</table>
+
+<!-- ============================ 5 GITHUB ============================ -->
+<h1 id="github">5. GitHub and its workflows</h1>
+<p>The code lives in a <b>private GitHub repository</b>, <code>kanakverma89/timetrack</code>. GitHub does three jobs here: it stores the history, it runs <b>GitHub Actions</b> (automated checks), and it is the source that Vercel and Render read from when they deploy.</p>
+
+<h2>The three workflows</h2>
+<p>Workflows are YAML files in <code>.github/workflows/</code>. Each runs on a fresh Ubuntu 24.04 virtual machine that GitHub provides.</p>
+
+<h3>1. <code>ci.yml</code> — continuous integration</h3>
+<table>
+<tr><th>Trigger</th><td>Every push to any branch, and every pull request. A newer push to the same branch cancels an older, still-running run.</td></tr>
+<tr><th>Services</th><td>A PostgreSQL 16 container (the backend and end-to-end jobs need a real database).</td></tr>
+</table>
+<table>
+<tr><th>Job</th><th>Runs on</th><th>Steps</th></tr>
+<tr><td><b>backend</b></td><td>Python 3.12 and 3.14 (a matrix: two parallel runs)</td><td><code>pip install -e ".[dev]"</code>, <code>ruff check</code>, <code>ruff format --check</code>, <code>mypy</code> (strict), <code>alembic upgrade head</code> then <code>alembic check</code> (migrations apply from an empty database and match the models), <code>pytest</code> (540 tests).</td></tr>
+<tr><td><b>frontend</b></td><td>Node 22, 24 and 26</td><td><code>npm ci</code>, ESLint, Prettier check, TypeScript check, Vitest (254 tests), production build.</td></tr>
+<tr><td><b>e2e</b></td><td>Python 3.12 + Node 22, after the two jobs above pass</td><td>Installs Chromium, Firefox and WebKit, then runs the full Playwright suite (369 tests) against a real API and database. Takes roughly 16 to 21 minutes on GitHub's runner; the job timeout is 45 minutes. Uploads the Playwright report if anything fails.</td></tr>
+</table>
+<p>A green run means: code style and types are clean, every migration applies, and all backend, component and browser tests pass on all supported Python and Node versions.</p>
+
+<h3>2. <code>audit.yml</code> — dependency audit</h3>
+<table>
+<tr><th>Trigger</th><td>Every Monday at 05:17 UTC; manually; and on pushes that change <code>backend/pyproject.toml</code>, <code>frontend/package.json</code>, <code>frontend/package-lock.json</code> or the workflow itself.</td></tr>
+<tr><th>Jobs</th><td><b>python</b>: installs the backend and runs <code>pip-audit --skip-editable</code>. <b>node</b>: <code>npm ci</code> then <code>npm audit --audit-level=low</code> (production and development dependencies).</td></tr>
+<tr><th>Why separate</th><td>A newly published vulnerability should become visible without turning every unrelated push red.</td></tr>
+</table>
+
+<h3>3. <code>deploy-verify.yml</code> — live smoke test</h3>
+<table>
+<tr><th>Trigger</th><td><b>Manual only</b> (<code>workflow_dispatch</code>): Actions tab → deploy-verify → Run workflow, or <code>gh workflow run deploy-verify</code>.</td></tr>
+<tr><th>Needs</th><td>A repository <b>variable</b> <code>DEMO_URL</code> (the live frontend address) and a repository <b>secret</b> <code>DEMO_EMPLOYEE_PASSWORD</code> (the demo password). Settings → Secrets and variables → Actions. Secrets are encrypted and never printed in logs.</td></tr>
+<tr><th>What it does</th><td>Installs Chromium and runs six smoke tests against the <i>deployed</i> site (<code>frontend/tests/smoke/deployed.spec.ts</code>): the API answers through the frontend address; the sign-in page loads; docs and registration do not exist, security headers are present and the shipped JavaScript contains no connection strings; anonymous callers are refused and an employee is refused on admin, approvals and reports; signing in works and the session cookie is <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>; an entry is saved, read back and deleted.</td></tr>
+<tr><th>Result recorded</th><td>6 of 6 passed against the live demo on 25 October 2026.</td></tr>
+</table>
+
+<div class="box"><b>Deployments are not GitHub Actions.</b> Vercel and Render deploy through their own GitHub integrations: when <code>main</code> changes, each notices, builds and releases by itself. GitHub Actions only <i>checks</i> things; it holds no deployment credentials, which is why no cloud tokens are stored in the repository.</div>
+
+<h2>Branches and history</h2>
+<ul>
+<li>One branch per piece of work (for example <code>feat/phase-7-administration-and-hardening</code>, <code>feat/free-tier-deployment</code>). <code>main</code> is the released state.</li>
+<li>A branch is merged into <code>main</code> with <code>git merge --no-ff</code> (a merge commit that keeps the branch visible in history), only when explicitly asked.</li>
+<li>Commits use GitHub's no-reply email address (GitHub refuses pushes that expose a personal address) and end with a <code>Co-Authored-By</code> line.</li>
+</ul>
+
+<!-- ============================ 6 CHANGE ============================ -->
+<h1 id="change">6. The process of making a change</h1>
+<p>Every change in this project followed the same loop. The deployment itself produced two real examples, described below.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 760 150" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" font-size="11">
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#17262b"/></marker></defs>
+  <g fill="#e0f2f1" stroke="#0f766e">
+  <rect x="5" y="40" width="82" height="50" rx="6"/><rect x="105" y="40" width="82" height="50" rx="6"/><rect x="205" y="40" width="82" height="50" rx="6"/><rect x="305" y="40" width="82" height="50" rx="6"/><rect x="405" y="40" width="82" height="50" rx="6"/><rect x="505" y="40" width="82" height="50" rx="6"/><rect x="605" y="40" width="82" height="50" rx="6"/></g>
+  <g text-anchor="middle"><text x="46" y="62" font-weight="700">1 Branch</text><text x="46" y="78" font-size="9">git checkout -b</text>
+  <text x="146" y="62" font-weight="700">2 Change</text><text x="146" y="78" font-size="9">code + tests</text>
+  <text x="246" y="62" font-weight="700">3 Check</text><text x="246" y="78" font-size="9">local suites</text>
+  <text x="346" y="62" font-weight="700">4 Commit</text><text x="346" y="78" font-size="9">+ push</text>
+  <text x="446" y="62" font-weight="700">5 CI</text><text x="446" y="78" font-size="9">GitHub Actions</text>
+  <text x="546" y="62" font-weight="700">6 Merge</text><text x="546" y="78" font-size="9">into main</text>
+  <text x="646" y="62" font-weight="700">7 Deploy</text><text x="646" y="78" font-size="9">Vercel + Render</text></g>
+  <g stroke="#17262b" marker-end="url(#b)"><line x1="87" y1="65" x2="105" y2="65"/><line x1="187" y1="65" x2="205" y2="65"/><line x1="287" y1="65" x2="305" y2="65"/><line x1="387" y1="65" x2="405" y2="65"/><line x1="487" y1="65" x2="505" y2="65"/><line x1="587" y1="65" x2="605" y2="65"/></g>
+  <text x="380" y="125" text-anchor="middle" font-size="10">8 Verify the live site (deploy-verify) · 9 If wrong: roll back in Vercel/Render, fix, repeat</text>
+</svg>
+</div>
+
+<h2>The steps in detail</h2>
+<ol>
+<li><b>Branch.</b> <code>git checkout -b feat/short-name</code> from an up-to-date <code>main</code>.</li>
+<li><b>Change.</b> Edit code <i>and</i> write the test that proves it. Rules that matter get a test that fails if the rule is removed (a deliberate "mutation check": break the code, confirm a test goes red, restore it).</li>
+<li><b>Check locally, the same commands CI runs:</b>
+<pre>cd backend  &amp;&amp; ruff check . &amp;&amp; ruff format --check . &amp;&amp; mypy app scripts &amp;&amp; pytest
+cd frontend &amp;&amp; npm run lint &amp;&amp; npm run format:check &amp;&amp; npm run typecheck &amp;&amp; npm test &amp;&amp; npm run build
+cd frontend &amp;&amp; npx playwright test        # three browsers, about 8 minutes</pre></li>
+<li><b>Commit and push.</b> <code>git add</code> only the intended files, commit with a message that explains <i>why</i>, <code>git push -u origin &lt;branch&gt;</code>.</li>
+<li><b>CI.</b> GitHub Actions runs <code>ci.yml</code> on the branch. Read failures, fix, push again.</li>
+<li><b>Merge.</b> <code>git checkout main &amp;&amp; git merge --no-ff &lt;branch&gt; &amp;&amp; git push origin main</code>, only when the owner says to.</li>
+<li><b>Deploy.</b> Pushing <code>main</code> makes Vercel rebuild the frontend and Render rebuild and restart the API, automatically.</li>
+<li><b>Verify.</b> Run <code>deploy-verify</code> and click through the real flow.</li>
+<li><b>Roll back if needed.</b> Vercel: Deployments → promote a previous one. Render: Deploys → roll back. Migrations only move forward, so roll the code back only if the old code still works with the current schema; otherwise restore data (see section 10).</li>
+</ol>
+
+<h2>Real example 1: pinning the region (a config-only change)</h2>
+<p>The Render form for the Blueprint did not let us choose a region, so it would have defaulted to Oregon while the Neon database is in Ohio. Render cannot change a service's region after creation, so the fix had to happen first:</p>
+<ol>
+<li>Add <code>region: ohio</code> to <code>render.yaml</code>, validate the file parses, note it in the deployment guide.</li>
+<li>Commit and push to <code>main</code> (commit <code>a49adfd</code>).</li>
+<li>Reload the Render form so it re-read the file from GitHub, re-enter the two secret values, deploy. The service list showed Region: Ohio.</li>
+</ol>
+
+<h2>Real example 2: the failed first deploy (a code change driven by a log)</h2>
+<ol>
+<li><b>Symptom.</b> The Render deploy failed in under a minute. The log: <code>sh: 1: alembic upgrade head &amp;&amp; exec uvicorn …: not found</code>, exit status 127.</li>
+<li><b>Diagnosis.</b> The Docker image had built fine. Render does not run <code>dockerCommand</code> through a shell, so the whole string was treated as the name of one program. My earlier local test had wrapped it in <code>sh -c</code> myself, so it could not reproduce this.</li>
+<li><b>Fix.</b> Put the two commands in <code>backend/scripts/render-start.sh</code> and set <code>dockerCommand: sh scripts/render-start.sh</code> (two plain words, nothing to mis-parse).</li>
+<li><b>Test before pushing.</b> Build the real image, run that exact command in production mode against a throwaway database: migrations to 0005, listens on the supplied port, health ok, docs 404, a restart changes nothing. Delete the throwaway database, container and image.</li>
+<li><b>Ship.</b> Commit <code>a6f4213</code> pushed to <code>main</code>; Render redeployed; status <b>Live</b>.</li>
+<li><b>Lesson recorded</b> in the deployment guide's troubleshooting table.</li>
+</ol>
+
+<h2>Where decisions are written down</h2>
+<p><code>docs/decisions.md</code> holds 72 numbered decisions (D-1 to D-72), each with its reason. <code>docs/implementation-report.md</code> records, for every phase, what was verified, which defects testing found, and what was <i>not</i> verified.</p>
+
+<!-- ============================ 7 DATA ============================ -->
+<h1 id="data">7. How data gets into the database</h1>
+<p>There are four different ways data reaches the production database. Knowing which is which explains almost every step of the setup.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" font-size="11">
+  <defs><marker id="c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#17262b"/></marker></defs>
+  <rect x="290" y="105" width="180" height="90" rx="10" fill="#e0f2f1" stroke="#0f766e" stroke-width="2"/>
+  <text x="380" y="140" text-anchor="middle" font-size="14" font-weight="700">Neon PostgreSQL</text><text x="380" y="160" text-anchor="middle" font-size="10">database "neondb"</text><text x="380" y="176" text-anchor="middle" font-size="10">reached only with DATABASE_URL</text>
+  <g fill="#fff" stroke="#0f766e">
+    <rect x="10" y="10" width="230" height="62" rx="8"/><rect x="520" y="10" width="230" height="62" rx="8"/><rect x="10" y="228" width="230" height="62" rx="8"/><rect x="520" y="228" width="230" height="62" rx="8"/></g>
+  <g text-anchor="middle">
+    <text x="125" y="32" font-weight="700">1 Migrations (schema)</text><text x="125" y="48" font-size="9.5">alembic upgrade head, run by Render</text><text x="125" y="61" font-size="9.5">every time the API starts</text>
+    <text x="635" y="32" font-weight="700">2 Seed (demo data)</text><text x="635" y="48" font-size="9.5">scripts/seed.py, run from your laptop</text><text x="635" y="61" font-size="9.5">synthetic users, projects, sample weeks</text>
+    <text x="125" y="250" font-weight="700">3 create-admin (one person)</text><text x="125" y="266" font-size="9.5">scripts/maintain.py, from your laptop</text><text x="125" y="279" font-size="9.5">your private administrator</text>
+    <text x="635" y="250" font-weight="700">4 The running app</text><text x="635" y="266" font-size="9.5">every entry, submission, decision</text><text x="635" y="279" font-size="9.5">arrives through the API on Render</text></g>
+  <g stroke="#17262b" marker-end="url(#c)"><line x1="200" y1="72" x2="310" y2="105"/><line x1="560" y1="72" x2="450" y2="105"/><line x1="200" y1="228" x2="310" y2="195"/><line x1="560" y1="228" x2="450" y2="195"/></g>
+</svg>
+</div>
+
+<h2>1. The schema: migrations</h2>
+<p>The tables are not created by hand. They are described by five <b>Alembic migration</b> files in <code>backend/alembic/versions/</code> (0001 initial schema → 0005 administration, policy and password flag). Each file says how to move the database up one version (and back). The database remembers its version in the <code>alembic_version</code> table; <code>alembic upgrade head</code> applies whatever it has not seen yet and does nothing when it is current, so it is safe to run repeatedly.</p>
+<p><b>On the live system</b> this happens automatically: Render's start command (<code>backend/scripts/render-start.sh</code>) runs <code>alembic upgrade head</code> and then starts the server. The first successful deploy therefore created every table in Neon; later restarts change nothing. (The start script printed "Running upgrade → 0001 … → 0005" in my local test of it; for the live system the evidence is that <code>/api/v1/health/ready</code> reports the database as ok and the seed later ran successfully, which needs the tables to exist.) That is also why Render's free plan, which has no separate pre-deploy command, still migrates safely. A test in CI (<code>alembic check</code>) fails if the Python models and the migrations ever disagree.</p>
+
+<h2>2. The demo data: the seed script, from your laptop to Neon</h2>
+<p><code>backend/scripts/seed.py</code> inserts <b>synthetic</b> data: six accounts (employee, employee2, employee3, manager, manager2, admin), two teams, four projects with tasks, five earning codes (one retired), and with <code>--sample-entries</code> a few sample weeks in draft, submitted and rejected states.</p>
+<p>It runs on <b>your laptop</b>, but writes to <b>Neon</b>, because the script connects to whatever database <code>DATABASE_URL</code> names. The steps:</p>
+<pre>cd backend
+# the Neon "direct" connection string, scheme postgresql+psycopg://
+read -rs DATABASE_URL ; export DATABASE_URL
+# the seed refuses to run when APP_ENV=production
+export APP_ENV=development
+# the shared demo password you choose (12+ characters)
+read -rs SEED_PASSWORD ; export SEED_PASSWORD
+.venv/bin/python scripts/seed.py --sample-entries     # prints "Seed complete."
+unset DATABASE_URL SEED_PASSWORD APP_ENV</pre>
+<p class="small">Run these one line at a time (see the warning below). Comment lines are for the reader; do not paste them into zsh.</p>
+<ul>
+<li><b>Why the laptop and not the server?</b> The seed deliberately refuses production mode, so it cannot be triggered from the public site. Running it by hand keeps a bulk data load under your control.</li>
+<li><b>Why <code>read -rs</code>?</b> It prompts for a value without echoing it or saving it in shell history. The variables exist only in that terminal session, and <code>unset</code> removes them.</li>
+<li><b>What the password becomes.</b> The seed hashes <code>SEED_PASSWORD</code> with Argon2id (parameters visible in the hash prefix <code>$argon2id$v=19$m=65536,t=3,p=4$</code>) and stores <i>only the hash</i>. The plain text is never stored or logged.</li>
+<li><b>Safe to repeat.</b> The seed <i>merges</i> rows by fixed ids: running it again updates the same six accounts (including resetting their password hashes to the current <code>SEED_PASSWORD</code>) instead of duplicating them. That property is what let us repair a mistake (below).</li>
+<li><b>Your connection string</b> is the key to the database. It is typed into a terminal and into Render's dashboard and nowhere else; it is not in the repository, in GitHub, or in Vercel.</li>
+</ul>
+
+<div class="box warn"><b>What went wrong once, and the fix.</b> Each <code>read -rs</code> prompt waits for its <i>own</i> value. The first time, the connection string was pasted at every prompt, so the demo accounts and the private administrator all got the connection string as their password (stored only as hashes, so nothing was exposed, but publishing it as "the demo password" would have handed out the database credential). Because the seed merges, the repair was: re-run it with a proper made-up demo password; sign in as the administrator using the old value and use the forced password change to set a real one. Separately, pasting a whole multi-line block into zsh fails because zsh does not treat <code>#</code> as a comment interactively and <code>read</code> swallows the following pasted lines: run such commands one line at a time.</div>
+
+<h2>3. The private administrator</h2>
+<p>The seed's administrator shares the demo password, so a separate, private one is created with <code>scripts/maintain.py create-admin EMAIL "Name"</code> (password from <code>ADMIN_PASSWORD</code>). The account is marked <i>must change password</i>, so the first web sign-in forces a new password. Afterwards the seeded <code>admin@example.test</code> is deactivated in the Admin screen so the public demo password never opens the Admin area.</p>
+
+<h2>4. Everything users do: through the API</h2>
+<p>Once the app is running, data enters only through the API on Render:</p>
+<ol>
+<li>The browser sends a request to the Vercel address, e.g. <code>POST /api/v1/time-entries</code>. The request carries the session cookie and the CSRF header.</li>
+<li>Vercel's rewrite forwards it to Render (<code>https://timetrack-demo-api.onrender.com/api/v1/…</code>).</li>
+<li>FastAPI validates the body (Pydantic), checks the session and the user's role, and runs the business rules.</li>
+<li>The service opens a database transaction through SQLAlchemy and the psycopg driver, over TLS to Neon: it locks the week row, checks it is editable, inserts the entry <i>and</i> an audit event, and commits both together or neither.</li>
+<li>The response goes back along the same path.</li>
+</ol>
+<p>Hours are stored as exact decimals (<code>NUMERIC(5,2)</code>) and travel as strings in JSON, so no floating-point rounding can alter them.</p>
+
+<h2>Reading and backing up the data</h2>
+<ul>
+<li><b>See what is in Neon:</b> the Neon console's SQL Editor and Tables views, or <code>psql</code> with the connection string.</li>
+<li><b>Back it up:</b> <code>pg_dump -Fc</code> against the direct connection string. Neon's free plan keeps a 6-hour restore window and one manual snapshot but no scheduled backups, so your own dump is the real backup. <code>scripts/backup-restore-drill.sh</code> proves a dump restores correctly (it was run against the development database).</li>
+<li><b>Reset the demo:</b> recreate the Neon database (or branch), redeploy the API so it migrates, then run the seed and create-admin again.</li>
+</ul>
+
+<!-- ============================ 8 DEPLOY ============================ -->
+<h1 id="deploy">8. How to deploy: the full process</h1>
+<p>Two deployment paths exist. The <b>free demo path</b> (Vercel + Render + Neon) is what is live. The <b>self-hosted path</b> (Docker Compose on your own server) is documented in <code>docs/operations.md</code>.</p>
+
+<h2>8.1 The free demo path, step by step</h2>
+<h3>Step 0: what is already in the repository</h3>
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>frontend/vercel.json</code></td><td>Tells Vercel: build with <code>npm run build</code>, serve <code>dist</code>; forward <code>/api/*</code> to the Render API; fall back to <code>index.html</code> for page routes; send security headers (CSP, nosniff, frame denial, referrer and permissions policies).</td></tr>
+<tr><td><code>render.yaml</code></td><td>A Render Blueprint: one Docker web service <code>timetrack-demo-api</code>, free plan, Ohio, health check <code>/api/v1/health/ready</code>, auto-deploy on commit, environment variables (secrets are declared <code>sync: false</code> so values are never in the file).</td></tr>
+<tr><td><code>backend/Dockerfile</code></td><td>Builds the API image (Python 3.12, non-root user).</td></tr>
+<tr><td><code>backend/scripts/render-start.sh</code></td><td>Migrate, then start uvicorn on Render's <code>$PORT</code>.</td></tr>
+<tr><td><code>.github/workflows/deploy-verify.yml</code></td><td>Smoke tests against the live site.</td></tr>
+</table>
+
+<h3>Step 1: Neon (the database)</h3>
+<ol>
+<li>Sign up at neon.com (GitHub login works). Create a project <code>timetrack-demo</code> in <b>AWS US East 2 (Ohio)</b>; keep only the Postgres service enabled (not Object storage, Functions, AI gateway, Realtime or Better Auth).</li>
+<li>Skip the "which coding agent" onboarding question ("I'm not using an agent").</li>
+<li><b>Connect</b> in the top navigation → turn <b>Connection pooling off</b> (the host must not contain <code>-pooler</code>) → copy the string.</li>
+<li>Edit it for this app: <code>postgresql://</code> becomes <code>postgresql+psycopg://</code> (the psycopg 3 driver), keep <code>?sslmode=require</code>, and drop <code>&amp;channel_binding=require</code>. Keep it private.</li>
+</ol>
+
+<h3>Step 2: Vercel (the frontend)</h3>
+<ol>
+<li>Sign up at vercel.com with GitHub on the <b>Hobby</b> (free) plan; give it access to only the <code>timetrack</code> repository. Team name is just a label.</li>
+<li>Add New → Project → import the repository. Vercel notices a frontend and a Python backend and offers a "multi-service project": <b>decline it</b> and choose <b>Import single project</b> for the <code>frontend</code> folder (the API is not hosted on Vercel).</li>
+<li>Set Project Name (this becomes the address, <code>https://&lt;name&gt;.vercel.app</code>), Root Directory <b>frontend</b>, preset Vite (it reads <code>vercel.json</code>). No environment variables. Deploy (about 20 seconds).</li>
+<li>Note the <b>production</b> address. The other addresses Vercel lists (per-deployment and per-branch URLs) are locked behind a Vercel login by default and have different origins; only the production address is the public one, and it opened without a login.</li>
+</ol>
+
+<h3>Step 3: Render (the API)</h3>
+<ol>
+<li>Sign up at render.com with GitHub; stay on the free plan. On the first screen skip the "Key Value instance" onboarding wizard.</li>
+<li>New → <b>Blueprint</b> (not "Web Service" or "Postgres"). Connect GitHub, authorise only the <code>timetrack</code> repository, choose branch <code>main</code>.</li>
+<li>Render reads <code>render.yaml</code> and lists <code>timetrack-demo-api</code>. Enter the two secret values: <code>DATABASE_URL</code> (the edited Neon string) and <code>CORS_ORIGINS</code> (exactly the Vercel production address, no trailing slash). <code>SESSION_SECRET</code> is generated by Render itself.</li>
+<li>Name the Blueprint, click <b>Deploy Blueprint</b>. Render builds the Docker image, runs the start script (migrating Neon), and starts the API. Check the service shows <b>Live</b>, Free, Ohio, and the address <code>https://timetrack-demo-api.onrender.com</code>, which matches the one in <code>vercel.json</code>.</li>
+</ol>
+
+<h3>Step 4: prove the link works</h3>
+<pre>curl https://&lt;vercel-address&gt;/api/v1/health/ready      # {"status":"ok","database":"ok"}</pre>
+<p>That single response proves four things: Vercel's proxy reaches Render, Render is running, the production configuration is valid, and Render can reach Neon.</p>
+
+<h3>Step 5: load the data and create the administrator</h3>
+<p>Run the seed and <code>create-admin</code> commands from section 7 from your laptop. Then sign in on the live site as your private administrator (a first request can take about a minute while the free API wakes), set a real password, and deactivate <code>admin@example.test</code>.</p>
+
+<h3>Step 6: verify and publish</h3>
+<ol>
+<li>Add the <code>DEMO_URL</code> variable and <code>DEMO_EMPLOYEE_PASSWORD</code> secret to GitHub, run <b>deploy-verify</b> (6 of 6 passed).</li>
+<li>Try the real flow by hand: submit as Alex, approve as Morgan.</li>
+<li>Put the live address and the employee and manager logins in the README.</li>
+</ol>
+
+<h2>8.2 Environment variables</h2>
+<table>
+<tr><th>Variable</th><th>Where set</th><th>Value / source</th></tr>
+<tr><td><code>APP_ENV</code></td><td>Render (from <code>render.yaml</code>)</td><td><code>production</code>: turns on secure cookies, HSTS, disables docs, enforces config checks.</td></tr>
+<tr><td><code>DATABASE_URL</code></td><td>Render dashboard only</td><td>The Neon direct string, <code>postgresql+psycopg://…?sslmode=require</code>.</td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td>Render (generated)</td><td>Random 256-bit value; keys the session-token digest.</td></tr>
+<tr><td><code>CORS_ORIGINS</code></td><td>Render dashboard</td><td>The Vercel production address, exactly.</td></tr>
+<tr><td><code>BUSINESS_TIMEZONE</code>, <code>WEEK_START_DAY</code>, <code>LOG_LEVEL</code></td><td>Render (from <code>render.yaml</code>)</td><td><code>Asia/Kolkata</code>, <code>MONDAY</code>, <code>INFO</code>.</td></tr>
+<tr><td><code>VITE_API_BASE_URL</code></td><td>not set</td><td>The default <code>/api/v1</code> is what makes the Vercel proxy work.</td></tr>
+<tr><td><code>DEMO_URL</code> (variable), <code>DEMO_EMPLOYEE_PASSWORD</code> (secret)</td><td>GitHub</td><td>For the smoke test only.</td></tr>
+</table>
+
+<h2>8.3 Failures met during the real deployment</h2>
+<table>
+<tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+<tr><td>Vercel asks for a login on one address</td><td>That was a per-deployment URL; those are protected by default</td><td>Use the production address (it was public).</td></tr>
+<tr><td>Vercel offers a "multi-service project"</td><td>It detected the Python backend</td><td>Choose "Import single project" for <code>frontend</code>.</td></tr>
+<tr><td>Render form offers no region</td><td>Blueprints take the region from the file</td><td>Add <code>region: ohio</code> to <code>render.yaml</code> and push before deploying (region is permanent).</td></tr>
+<tr><td>Deploy exits with status 127 "…: not found"</td><td>Render does not run <code>dockerCommand</code> through a shell</td><td>Use a script: <code>sh scripts/render-start.sh</code>.</td></tr>
+<tr><td>Sign-in page shows "Request failed (404)" before the API existed</td><td>The proxy pointed at a Render address with no service yet</td><td>Expected until step 3 completed.</td></tr>
+<tr><td><code>zsh: no matches found: …?sslmode=require</code></td><td>Placeholder text pasted as a command; <code>?</code> is a wildcard in zsh</td><td>Paste the real value into a <code>read</code> prompt, one command per paste.</td></tr>
+<tr><td>Demo accounts had the connection string as password</td><td>The string was pasted at every <code>read</code> prompt</td><td>Re-run the seed with a made-up password; change the admin's password at first sign-in.</td></tr>
+</table>
+
+<h2>8.4 Updating and rolling back the live system</h2>
+<ul>
+<li><b>Update:</b> merge to <code>main</code>. Vercel and Render redeploy on their own (Render's Blueprint has Auto Sync on, so edits to <code>render.yaml</code> apply too, which is why that file must keep the Free plan).</li>
+<li><b>Roll back:</b> Vercel → Deployments → promote an earlier deployment. Render → Deploys → roll back. If a migration changed the schema, only roll code back if the old code still runs against it.</li>
+<li><b>Change the database password:</b> Neon → Roles → Reset password; copy the new string from Connect; edit <code>DATABASE_URL</code> in Render's Environment tab; the service redeploys. (Optional; recommended if the string was ever exposed.)</li>
+</ul>
+
+<h2>8.5 The self-hosted path (for a real deployment)</h2>
+<p><code>compose.prod.yaml</code> runs four containers: PostgreSQL 16 (not published), a one-shot <code>migrate</code>, the API (non-root, read-only filesystem, no Linux capabilities) and nginx serving the built frontend with a Content-Security-Policy and proxying <code>/api</code>. Only nginx publishes a port (to 127.0.0.1); TLS is terminated in front of it by your own load balancer or a proxy such as Caddy. <code>docs/operations.md</code> covers configuration, creating the first administrator, backups and restores, retention (<code>scripts/maintain.py purge</code>), and monitoring. This path was built and smoke-tested locally but never run in a real environment.</p>
+
+<!-- ============================ 9 THIRD PARTY ============================ -->
+<h1 id="third">9. Third-party services and tools in detail</h1>
+<p class="small">Free-tier figures below were read from each provider's official pages on 25 October 2026. They are not guarantees and can change at any time. Where a page did not state something (for example whether a payment card is required), it is marked as not stated.</p>
+
+<h2>9.1 Neon: the managed PostgreSQL database</h2>
+<dl>
+<dt>What it is</dt><dd>A "serverless Postgres" service: real PostgreSQL, where the compute (the part that runs queries) can scale to zero when idle and wake on demand, and storage is separate. It is run by Neon's company, hosted on AWS.</dd>
+<dt>Why it was chosen</dt><dd>The app needs real PostgreSQL features (row locks, triggers, CHECK constraints, JSON). Render's own free Postgres expires after 30 days, which would have made the demo disappear; Neon's free plan has no expiry date.</dd>
+<dt>How the project uses it</dt><dd>One project, <code>timetrack-demo</code>, one branch (<code>production</code>, the default), one database (<code>neondb</code>), one role. Region AWS US East 2 (Ohio). The API and your laptop connect with the <b>direct</b> connection string over TLS (<code>sslmode=require</code>).</dd>
+<dt>Free plan limits (Neon pricing page)</dt><dd>
+<table>
+<tr><th>Item</th><th>Free plan</th></tr>
+<tr><td>Price</td><td>$0 per month</td></tr>
+<tr><td>Projects</td><td>100 per account</td></tr>
+<tr><td>Storage</td><td>1 GB per project (20 GB across all free projects)</td></tr>
+<tr><td>Compute</td><td>100 compute-unit-hours per project per month (about 400 hours of the smallest, 0.25 CU compute); autoscaling up to 2 CU</td></tr>
+<tr><td>Scale to zero</td><td>Compute suspends after 5 minutes of inactivity; always on, cannot be disabled. The first query after that wakes it and is delayed (the pages read do not give the duration).</td></tr>
+<tr><td>Branches</td><td>10 per project</td></tr>
+<tr><td>Restore</td><td>Instant restore within a 6-hour history window; 1 manual snapshot; no scheduled backups</td></tr>
+<tr><td>When limits are exceeded</td><td>Compute is suspended until the next period, or writes that grow storage fail. The page says none of the limits delete data.</td></tr>
+<tr><td>Payment card</td><td>Not stated on the pages read.</td></tr>
+</table></dd>
+<dt>Connection types</dt><dd><b>Direct</b> (host like <code>ep-…-N.us-east-2.aws.neon.tech</code>) and <b>pooled</b> (host contains <code>-pooler</code>, goes through PgBouncer). Neon's docs say migration tools should use a direct connection, and that protocol-level prepared statements work through the pooler. This project uses direct everywhere, which is simplest for a single small API instance. <code>pool_pre_ping</code> is enabled in the SQLAlchemy engine, so a connection that went stale while compute was suspended is replaced instead of failing the request.</dd>
+<dt>Roles and passwords</dt><dd>The console generates the role password. <b>Roles → role menu → Reset password</b> issues a new one (effective immediately; the old one stops working on the next connection) and the connection string must then be updated everywhere it is stored; here that is only Render's <code>DATABASE_URL</code>.</dd>
+<dt>Risks and exit</dt><dd>Free tier can be suspended if limits are hit; no scheduled backups (take your own <code>pg_dump</code>). To leave Neon: <code>pg_dump</code>, restore into any PostgreSQL 16, change <code>DATABASE_URL</code>.</dd>
+</dl>
+
+<h2>9.2 Vercel: frontend hosting and the /api proxy</h2>
+<dl>
+<dt>What it is</dt><dd>A hosting and deployment platform best known for front-end projects. It builds from Git, serves static files from a global CDN and can route requests.</dd>
+<dt>Why it was chosen</dt><dd>Free static hosting that deploys from a private GitHub repository, and <b>rewrites to external origins</b>. The rewrite is the key: the app's session cookie is <code>SameSite=Lax</code> and the API checks request origins, so a page on one domain calling an API on another would lose the cookie. With the rewrite, the browser only talks to the Vercel address and Vercel forwards <code>/api/*</code> to Render.</dd>
+<dt>How the project uses it</dt><dd>Project <code>timetrack-demo-kanak</code> on a Hobby team; Git branch <code>main</code>; Root Directory <code>frontend</code>; preset Vite; no environment variables. Build <code>npm run build</code> (TypeScript check plus Vite build, about 20 seconds); output <code>dist</code>. Each push to <code>main</code> makes a new <b>production deployment</b>; other branches and commits get <b>preview</b> deployments at their own addresses (which do not work for sign-in because their origin is not in <code>CORS_ORIGINS</code>).</dd>
+<dt>What <code>vercel.json</code> does</dt><dd>(1) rewrite <code>/api/:path*</code> to <code>https://timetrack-demo-api.onrender.com/api/:path*</code>; (2) rewrite every other path except <code>/api/</code> to <code>/index.html</code>, so deep links like <code>/admin/users</code> work in a single-page app; (3) response headers: a same-origin Content-Security-Policy (<code>default-src 'self'</code> with scripts and styles only from the site itself), <code>nosniff</code>, frame denial, no-referrer and a restrictive Permissions-Policy; (4) long-lived caching for hashed assets. Vercel forwards the visitor's address to the origin in <code>x-forwarded-for</code> and <code>x-real-ip</code>.</dd>
+<dt>Hobby plan limits</dt><dd>
+<table>
+<tr><th>Item</th><th>Hobby (free)</th></tr>
+<tr><td>Intended use</td><td>Personal projects; <b>non-commercial, personal use only</b> (fair-use guidelines). A portfolio fits; using it to sell services does not.</td></tr>
+<tr><td>Projects / domains per project</td><td>200 / 50</td></tr>
+<tr><td>Deployments per day</td><td>100</td></tr>
+<tr><td>Included usage per month</td><td>100 GB fast data transfer, 10 GB fast origin transfer, 1,000,000 CDN requests, 1,000,000 function invocations</td></tr>
+<tr><td>Builds</td><td>2 vCPU, 8 GB memory, 32 GB disk per build</td></tr>
+<tr><td>Runtime logs</td><td>1 hour retained</td></tr>
+<tr><td>If limits are exceeded</td><td>Wait about 30 days before the affected feature works again (no automatic billing on Hobby)</td></tr>
+<tr><td>Deployment protection</td><td>Vercel Authentication on by default for preview and per-deployment URLs; the project's production domain was public when tested</td></tr>
+<tr><td>Payment card</td><td>Not stated on the page read.</td></tr>
+</table></dd>
+<dt>Not documented in the pages I read</dt><dd>How long a proxied request may wait for a sleeping origin; that <code>Set-Cookie</code> passes through the rewrite. Both were therefore <b>tested on the live site</b> rather than assumed: sign-in works and the session survives.</dd>
+<dt>Risks and exit</dt><dd>Terms are non-commercial. The frontend is static files, so it can move to any static host (the only coupling is the <code>/api</code> proxy rule).</dd>
+</dl>
+
+<h2>9.3 Render: the API host</h2>
+<dl>
+<dt>What it is</dt><dd>A cloud platform that runs web services, databases and jobs from Git or Docker images.</dd>
+<dt>Why it was chosen</dt><dd>It runs the project's existing Docker image unchanged on a free plan, deploys from GitHub, and gives an HTTPS address with no certificate work.</dd>
+<dt>How the project uses it</dt><dd>One <b>Blueprint</b> (<code>timetrack-demo</code>) created from <code>render.yaml</code>, which created one <b>web service</b> <code>timetrack-demo-api</code>: runtime Docker, Dockerfile <code>./backend/Dockerfile</code>, context <code>./backend</code>, region Ohio, plan Free, branch <code>main</code>, auto-deploy on commit, health check <code>/api/v1/health/ready</code>, start command <code>sh scripts/render-start.sh</code>. <b>Auto Sync</b> is on, so changes to <code>render.yaml</code> on <code>main</code> are applied to the Blueprint automatically.</dd>
+<dt>What a deploy does</dt><dd>Clone the repo → build the Docker image (cached layers) → push it to Render's registry → start a container with the Blueprint's command and environment variables → wait for the health check to pass → switch traffic. Logs for each deploy and live logs are in the dashboard. The start script runs <code>alembic upgrade head</code> then <code>uvicorn</code> on the <code>$PORT</code> Render supplies (default 10000).</dd>
+<dt>Free web service limits (Render docs)</dt><dd>
+<table>
+<tr><th>Item</th><th>Free</th></tr>
+<tr><td>Instance hours</td><td>750 per workspace per month (enough for one service running continuously); they do not roll over; if used up, free services are suspended until the next month</td></tr>
+<tr><td>Spin-down</td><td>After 15 minutes without inbound traffic. Waking takes about a minute; browsers see a loading page. The dashboard warns of delays "of 50 seconds or more".</td></tr>
+<tr><td>Resources</td><td>0.1 CPU, 512 MB RAM</td></tr>
+<tr><td>Storage</td><td>Local filesystem is lost on redeploy, restart or spin-down; no persistent disk (the app keeps nothing on disk)</td></tr>
+<tr><td>Not available on free</td><td>Pre-deploy command (paid; hence migrations live in the start script), scaling beyond one instance, shell access, one-off jobs, private network traffic, outbound SMTP ports 25/465/587</td></tr>
+<tr><td>Bandwidth and builds</td><td>Counted against monthly included amounts (the page does not give the figures). Without a payment method, overages suspend free services or disable new builds for the rest of the month instead of billing.</td></tr>
+<tr><td>Intended use</td><td>Render's own wording: suitable for testing and hobby projects; "do not use them for production applications".</td></tr>
+<tr><td>Render's free Postgres</td><td>Expires 30 days after creation (14-day grace, then deleted) and has no backups. <b>Not used</b>.</td></tr>
+<tr><td>Payment card</td><td>Not stated as required for a free instance.</td></tr>
+</table></dd>
+<dt>Risks and exit</dt><dd>Slow first request after idle; can restart at any time; trust of forwarded headers (below). The same image runs anywhere Docker runs, so moving is a matter of setting the same environment variables.</dd>
+<dt>A known security trade-off</dt><dd>The API trusts <code>X-Forwarded-For</code> from any sender (<code>--forwarded-allow-ips "*"</code>, as in the Docker image). Behind Render and Vercel the real visitor address arrives that way, which is what lets the login throttle see individual visitors. But Render's own address is public, so someone calling it directly could forge the header and sidestep the per-address throttle. Accepted for a demo because the private administrator has a long random password; recorded as risk R-6 in the security review.</dd>
+</dl>
+
+<h2>9.4 GitHub</h2>
+<dl>
+<dt>What it is</dt><dd>Git hosting, collaboration and automation (GitHub Actions).</dd>
+<dt>How the project uses it</dt><dd>Private repository; branch-per-change history; Actions for CI, weekly dependency audits and the live smoke test; <b>repository secrets and variables</b> for the smoke test (<code>DEMO_EMPLOYEE_PASSWORD</code>, <code>DEMO_URL</code>); sign-in provider for Neon, Vercel and Render; the source both Vercel and Render deploy from (each was granted access to only this one repository).</dd>
+<dt>Actions runners</dt><dd>Fresh Ubuntu 24.04 virtual machines. Action versions used: <code>checkout</code>, <code>setup-python</code>, <code>setup-node</code> and <code>upload-artifact</code>, all at v7 (bumped earlier to leave the deprecated Node 20 runtime). Free-plan Actions minutes and storage limits were <b>not</b> checked for this document; CI runs about 16 to 21 minutes each push because of the three-browser end-to-end job.</dd>
+<dt>Secrets handling</dt><dd>Secrets are encrypted, masked in logs and not passed to workflows triggered from forks. Anyone with collaborator access can use them in workflows.</dd>
+</dl>
+
+<h2>9.5 Docker and container images</h2>
+<table>
+<tr><th>Image</th><th>Used for</th></tr>
+<tr><td><code>postgres:16</code></td><td>The local development database (<code>compose.yaml</code>), the CI services, the self-hosted database.</td></tr>
+<tr><td><code>python:3.12-slim</code></td><td>Base of the API image (two stages: build the virtual environment, then copy it into a clean runtime image that runs as a non-root user).</td></tr>
+<tr><td><code>node:22-slim</code> → <code>nginxinc/nginx-unprivileged:1.27-alpine</code></td><td>Self-hosted frontend: build the React app, then serve it from an unprivileged nginx. (Not used by the Vercel deployment.)</td></tr>
+</table>
+<p>Docker Desktop on the laptop runs the local database; <code>docker exec</code> opens a <code>psql</code> shell in it. The images were also built and run locally to test the Render start command before it was pushed.</p>
+
+<h2>9.6 Libraries (installed from PyPI and npm)</h2>
+<h3>Backend (Python)</h3>
+<table>
+<tr><th>Package</th><th>Role</th></tr>
+<tr><td>FastAPI, Pydantic, pydantic-settings</td><td>Web framework, request/response validation, typed configuration from environment variables.</td></tr>
+<tr><td>uvicorn</td><td>The server that runs the app (HTTP, proxy-header handling).</td></tr>
+<tr><td>SQLAlchemy 2, psycopg 3 (binary), Alembic</td><td>Database access, the PostgreSQL driver, migrations.</td></tr>
+<tr><td>argon2-cffi</td><td>Argon2id password hashing.</td></tr>
+<tr><td>tzdata</td><td>Time-zone data for business dates.</td></tr>
+<tr><td>pytest, httpx, ruff, mypy (development)</td><td>Tests, the HTTP test client, linting and formatting, static type checking.</td></tr>
+</table>
+<h3>Frontend (JavaScript/TypeScript)</h3>
+<table>
+<tr><th>Package</th><th>Role</th></tr>
+<tr><td>React 19, React DOM, React Router 7</td><td>UI and routing.</td></tr>
+<tr><td>TanStack Query 5</td><td>Server-state caching, retries, invalidation.</td></tr>
+<tr><td>Vite 8, @vitejs/plugin-react, TypeScript 6</td><td>Dev server, production build, type checking.</td></tr>
+<tr><td>Vitest 5, Testing Library (react, user-event, jest-dom), jsdom</td><td>Component tests.</td></tr>
+<tr><td>Playwright, @axe-core/playwright</td><td>Browser end-to-end tests and automated accessibility checks.</td></tr>
+<tr><td>ESLint (with react-hooks and jsx-a11y), Prettier</td><td>Linting (including accessibility rules) and formatting.</td></tr>
+</table>
+<p>No UI component library and no state-management library were added (decisions D-9 and D-10), to keep the dependency surface small. <code>pip-audit</code> and <code>npm audit</code> found no known vulnerabilities in these on 25 October 2026.</p>
+
+<h2>9.7 Things that were considered but not used</h2>
+<ul>
+<li><b>Render's free PostgreSQL</b> (expires after 30 days), <b>Supabase</b> (considered as an alternative; not evaluated further), <b>Cloudflare quick tunnels</b> (offered as a zero-account way to share a laptop-hosted copy, never set up), <b>Vercel's Python/"services" hosting</b> (offered in the import screen, declined), email providers (the notification outbox has no real adapter).</li>
+</ul>
+
+<!-- ============================ 10 OPS ============================ -->
+<h1 id="ops">10. Running it afterwards: operations, costs, limits, risks</h1>
+
+<h2>Day-to-day</h2>
+<ul>
+<li><b>Is it up?</b> <code>curl https://timetrack-demo-kanak.vercel.app/api/v1/health/ready</code> should return <code>{"status":"ok","database":"ok"}</code>. If it hangs for a minute the API was asleep.</li>
+<li><b>Logs:</b> Render dashboard → the service → Logs (one JSON object per line with a request id; the same id appears in error responses). Vercel keeps one hour of runtime logs.</li>
+<li><b>Health after a deploy:</b> run <code>deploy-verify</code>.</li>
+</ul>
+
+<h2>Costs and billing risk</h2>
+<ul>
+<li>Everything is on free plans. None of the pages read states that a card is required; each provider's sign-up flow decides that, and any payment prompt should be read before accepting.</li>
+<li>Render: with no payment method, overage means suspension rather than a charge. Vercel Hobby: limits pause features; no automatic billing. Neon free: limits suspend compute or fail writes. The practical risk is the demo going offline, not a bill, <i>provided you stay on the free plans</i>. The purple banner on Render's Blueprint page ("future updates to your Blueprint file … may change your costs") means a change to <code>plan:</code> in <code>render.yaml</code> could create a paid instance, so review that file before merging changes to it.</li>
+</ul>
+
+<h2>Known limitations and risks</h2>
+<table>
+<tr><th>Item</th><th>Detail</th></tr>
+<tr><td>Cold start</td><td>About a minute after 15 idle minutes; Neon adds a short wake-up on top.</td></tr>
+<tr><td>Provider terms</td><td>Render: free is for hobby/testing; Vercel Hobby: non-commercial.</td></tr>
+<tr><td>Shared demo password</td><td>Anyone with it can add and submit entries on the live site; reset by re-seeding.</td></tr>
+<tr><td>Login throttle</td><td>In-memory and single-instance; forgeable address behind the public Render URL (risk R-6).</td></tr>
+<tr><td>No scheduled backups</td><td>Take your own <code>pg_dump</code>.</td></tr>
+<tr><td>No email</td><td>Notifications go to a log only.</td></tr>
+<tr><td>No MFA/SSO</td><td>Local accounts only.</td></tr>
+<tr><td>Not tested</td><td>Screen readers; real phones; production-scale load; the self-hosted Docker path in a real environment; restoring a backup onto another PostgreSQL major version.</td></tr>
+<tr><td>Browser quirk</td><td>WebKit logs harmless CSP console messages for native &lt;select&gt; controls (reproduced on a bare page; no visible effect found).</td></tr>
+</table>
+
+<h2>Performance (measured locally, not on the live site)</h2>
+<p>On a laptop with ~15,000 entries: dashboard read about 6 ms at the 95th percentile, saving an entry about 11 ms, admin lists 4 to 8 ms, creating a user about 64 ms (Argon2 hashing), reports over a year about 42 to 65 ms. These measure the application, not the free hosts: expect extra latency from the network hops and the cold starts described above. Load and security scanners were deliberately <b>not</b> run against the public site.</p>
+
+<h2>Security summary</h2>
+<p>Argon2id hashes; HMAC-digested sessions in <code>HttpOnly</code> <code>Secure</code> cookies; CSRF header and origin allow-list; role guards plus a route-by-role matrix test; strict CSP, HSTS and other headers; append-only audit tables; no secrets or personal data in audit rows; CSV formula neutralising; weekly dependency audit; production-mode refusal of weak configuration. This was an engineering review by the authors, not an independent penetration test (<code>docs/security-review.md</code>).</p>
+
+<!-- ============================ APPENDIX ============================ -->
+<h1 id="appx">Appendix</h1>
+
+<h2>A. Commands cheat-sheet</h2>
+<table>
+<tr><th>Task</th><th>Command</th></tr>
+<tr><td>Start / stop the local app</td><td><code>scripts/dev-up.sh</code> / <code>scripts/dev-down.sh</code> (app on localhost:5173, API on 8000)</td></tr>
+<tr><td>Backend checks</td><td><code>cd backend &amp;&amp; .venv/bin/ruff check . &amp;&amp; .venv/bin/mypy app scripts &amp;&amp; .venv/bin/pytest</code></td></tr>
+<tr><td>Frontend checks</td><td><code>cd frontend &amp;&amp; npm run lint &amp;&amp; npm run typecheck &amp;&amp; npm test &amp;&amp; npm run build</code></td></tr>
+<tr><td>End-to-end tests</td><td><code>cd frontend &amp;&amp; npx playwright test</code> (add <code>--project=chromium</code> for one browser)</td></tr>
+<tr><td>Performance check</td><td><code>cd backend &amp;&amp; .venv/bin/python scripts/perf_check.py</code></td></tr>
+<tr><td>Backup drill</td><td><code>scripts/backup-restore-drill.sh</code></td></tr>
+<tr><td>Live health</td><td><code>curl https://timetrack-demo-kanak.vercel.app/api/v1/health/ready</code></td></tr>
+<tr><td>Run the live smoke test</td><td><code>gh workflow run deploy-verify</code></td></tr>
+<tr><td>Purge old rows (self-hosted)</td><td><code>python scripts/maintain.py purge --dry-run</code></td></tr>
+<tr><td>Create an administrator</td><td><code>python scripts/maintain.py create-admin EMAIL "Name"</code> (password from <code>ADMIN_PASSWORD</code>)</td></tr>
+</table>
+
+<h2>B. Where things are in the repository</h2>
+<table>
+<tr><th>Path</th><th>What</th></tr>
+<tr><td><code>backend/app/</code></td><td>API (<code>api/</code>), business rules (<code>services/</code>), queries (<code>repositories/</code>), tables (<code>models/</code>), security helpers, tests (<code>tests/</code>)</td></tr>
+<tr><td><code>backend/alembic/versions/</code></td><td>The five migrations</td></tr>
+<tr><td><code>backend/scripts/</code></td><td><code>seed.py</code>, <code>maintain.py</code>, <code>render-start.sh</code>, <code>perf_check.py</code>, <code>prepare_db.py</code>, <code>e2e_state.py</code></td></tr>
+<tr><td><code>frontend/src/</code></td><td>The React app: <code>features/</code> (dashboard, time-entries, approvals, admin, reports, auth), <code>components/</code>, <code>api/</code></td></tr>
+<tr><td><code>frontend/tests/e2e/</code>, <code>tests/smoke/</code></td><td>Browser tests; live smoke tests</td></tr>
+<tr><td><code>.github/workflows/</code></td><td><code>ci.yml</code>, <code>audit.yml</code>, <code>deploy-verify.yml</code></td></tr>
+<tr><td><code>docs/</code></td><td>architecture, decisions, data model, API contracts, testing strategy, security review, operations, performance, user guide, free-tier deployment, implementation report</td></tr>
+<tr><td><code>render.yaml</code>, <code>frontend/vercel.json</code>, <code>compose*.yaml</code>, Dockerfiles</td><td>Deployment configuration</td></tr>
+</table>
+
+<h2>C. Glossary</h2>
+<dl>
+<dt>API</dt><dd>The server's set of web addresses (under <code>/api/v1</code>) that the browser app calls to read and change data.</dd>
+<dt>Argon2id</dt><dd>A deliberately slow, memory-hungry password-hashing algorithm.</dd>
+<dt>Blueprint (Render)</dt><dd>A <code>render.yaml</code> file describing the services Render should create and keep in sync.</dd>
+<dt>CI</dt><dd>Continuous integration: automatic checks on every push.</dd>
+<dt>CORS / CSRF</dt><dd>Browser rules about which websites may call an API / protection against a malicious site making your browser perform an action.</dd>
+<dt>CSP</dt><dd>Content-Security-Policy: a response header limiting what a page may load or run.</dd>
+<dt>Idempotency key</dt><dd>A client-supplied token that makes retrying a request harmless.</dd>
+<dt>Migration</dt><dd>A versioned script that changes the database schema; applied in order and recorded.</dd>
+<dt>Origin</dt><dd>Scheme + host + port of a web page (e.g. <code>https://timetrack-demo-kanak.vercel.app</code>).</dd>
+<dt>Pooled connection</dt><dd>A database connection through a pooler (PgBouncer) that shares connections between many clients; the alternative is a <i>direct</i> connection.</dd>
+<dt>Rewrite (Vercel)</dt><dd>Serving the content of a different address (here, the Render API) under your own address without the browser noticing.</dd>
+<dt>Seed</dt><dd>A script that fills a database with starting data.</dd>
+<dt>Smoke test</dt><dd>A short check that the main paths of a deployed system work.</dd>
+<dt>Spin-down / cold start</dt><dd>A free service being stopped after inactivity, and the delay while it starts again.</dd>
+<dt>TLS / HTTPS</dt><dd>Encryption of traffic between two parties; the padlock in a browser.</dd>
+</dl>
+
+<h2>D. Further reading in the repository</h2>
+<p><code>README.md</code> (quick start and live demo), <code>docs/user-guide.md</code> (every scenario with test ideas for UI, API, database, performance and security), <code>docs/deployment-free-tier.md</code> (this deployment in checklist form), <code>docs/operations.md</code> (self-hosting), <code>docs/security-review.md</code>, <code>docs/decisions.md</code>, <code>docs/implementation-report.md</code>.</p>
+
+</body>
+</html>
