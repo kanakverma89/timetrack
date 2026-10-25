@@ -2,6 +2,13 @@ name: debug-e2e
 on:
   push:
     branches: [fix/e2e-webkit-contrast]
+env:
+  POSTGRES_USER: timetrack
+  POSTGRES_PASSWORD: ci-only-db-password
+  POSTGRES_DB: timetrack
+  DATABASE_URL: postgresql+psycopg://timetrack:ci-only-db-password@localhost:5432/timetrack
+  SESSION_SECRET: ci-only-session-secret-0123456789-abcdefghijklmnop
+  SEED_PASSWORD: ci-only-seed-password
 jobs:
   webkit-one:
     runs-on: ubuntu-24.04
