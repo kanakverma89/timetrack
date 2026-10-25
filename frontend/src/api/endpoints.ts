@@ -96,6 +96,12 @@ export const submitWeek = (weekStart: string, comment: string | null, idempotenc
     headers: { 'Idempotency-Key': idempotencyKey },
   });
 
+/** Take back a submitted week that no manager has decided on yet (SUBMITTED -> DRAFT). */
+export const withdrawWeek = (weekStart: string) =>
+  apiFetch<TimesheetWeek>(`/timesheets/weeks/${encodeURIComponent(weekStart)}/withdraw`, {
+    method: 'POST',
+  });
+
 export interface ApprovalQuery {
   status: Exclude<WeekStatus, 'DRAFT'>;
   page: number;

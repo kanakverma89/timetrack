@@ -44,6 +44,7 @@ The `X-Request-ID` response header equals `error.request_id`; a valid inbound `X
 | `POST /time-entries` | session + CSRF | Create an entry (201) |
 | `POST /time-entries/batch` | session + CSRF | Week mode: create several entries for one week atomically (201) |
 | `POST /timesheets/weeks/{date}/submit` | session + CSRF | Submit the caller's week for approval (200) |
+| `POST /timesheets/weeks/{date}/withdraw` | session + CSRF | Take back the caller's submitted week while no manager has decided (200, back to DRAFT) |
 | `GET /approvals` | manager/admin | Paginated list of weeks to review (see below) |
 | `GET /approvals/{week_id}` | manager/admin | Review detail: employee, full week, history |
 | `POST /approvals/{week_id}/approve` | manager/admin + CSRF | Approve a submitted week (200) |
@@ -177,6 +178,32 @@ notification payload. After a successful submission every write to the week retu
 
 Notification payload (outbox `payload`, ids and totals only): `week_id`, `employee_id`,
 `manager_id` (may be null), `week_start_date`, `entry_count`, `total_hours`, `resubmission`.
+
+## Withdrawal
+
+`POST /timesheets/weeks/{date}/withdraw` — no body. `{date}` is any date in the week; the week is always
+the caller's own. Allowed only while the week is `SUBMITTED` (still waiting for a manager).
+
+Success `200`: the updated week with `status: "DRAFT"`, `submitted_at: null`, `is_editable: true`. The
+entries are untouched. In one transaction, under the same row lock a manager's decision takes, it sets
+the status, clears `submitted_at`, appends a `WITHDRAWN` approval event (actor = the employee) and
+enqueues a `TIMESHEET_WITHDRAWN` notification (payload: `week_id`, `employee_id`, `manager_id`,
+`week_start_date`; ids only). Because both actions lock the week, a withdrawal and an approval or
+rejection at the same moment cannot both succeed.
+
+| Situation | Response |
+| --- | --- |
+| Week is DRAFT | `409 INVALID_TRANSITION`, "nothing to withdraw" |
+| Week is APPROVED | `409 INVALID_TRANSITION`, "already been approved" |
+| Week is REJECTED | `409 INVALID_TRANSITION`, "already open for editing" |
+| Already withdrawn (a second call) | `409 INVALID_TRANSITION`; no second event |
+| No such week for the caller (including someone else's week) | `404 NOT_FOUND` |
+| Date outside the supported years | `422`, `field_errors.week_start_date` |
+| No session / missing CSRF header | `401` / `403` |
+
+For the manager the week simply stops existing in review terms: it leaves the `SUBMITTED` queue, and
+`GET /approvals/{week_id}` and the decision routes answer `404` (draft weeks are private). Submitting
+again writes a new `SUBMITTED` event, so the history reads submitted → withdrawn → submitted.
 
 ## Manager review (Phase 6)
 

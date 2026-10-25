@@ -16,6 +16,7 @@ people, projects, codes and hour limits, and can read an audit log. Managers and
 **reports**.
 
 A week's life: `DRAFT → SUBMITTED → APPROVED` (final) or `→ REJECTED` (the employee fixes it and resubmits).
+While a week is `SUBMITTED` and no manager has decided, the employee can **withdraw** it back to `DRAFT`.
 
 ## 2. Start it
 
@@ -103,6 +104,13 @@ to a different week: delete it and add a new one.
 2. Confirm. The week becomes **Submitted** and **read-only**.
 3. If a limit is exceeded (for example more hours in a day than the policy allows) you get a list of what to
    fix; nothing is submitted.
+
+### Take a submission back (withdraw)
+Submitted the wrong week, or forgot an entry? While the week still says **Submitted**, use **Withdraw
+submission** (next to the status), then confirm. The week becomes a **Draft** again with all its entries, so
+you can add, edit or delete and then **Submit week** again. Your manager no longer sees it in **Approvals**
+meanwhile, and their review history records "Withdrawn". Once your manager has approved or rejected the week
+the button is gone (an approved week is final; a rejected one is already editable).
 
 ### If your manager rejects it
 Your Timesheet shows a banner: **"This week was rejected"**, the **reason**, who reviewed and when. The week
@@ -195,6 +203,13 @@ Each scenario lists the people, the steps and what you should see.
 1. Alex submits. Morgan **Rejects** with reason "Please recheck Tuesday's hours."
 2. Alex sees the rejection banner and reason, edits Tuesday, **Resubmit week**.
 3. Morgan approves. Open the review page: the history shows submitted → rejected → submitted → approved.
+
+**B2. Withdrawing a submission** (Alex, Morgan)
+1. Alex submits a week, then notices a missing entry.
+2. Alex clicks **Withdraw submission** and confirms. The status is **Draft** and Add/Edit/Delete are back.
+3. Morgan: **Approvals** no longer lists the week (the page link now says "Timesheet not found").
+4. Alex adds the entry and **Submit week** again. Morgan sees it again; its history reads submitted →
+   withdrawn → submitted. After Morgan approves, **Withdraw submission** is gone.
 
 **C. Onboarding a new hire** (Jordan, new person)
 1. Jordan creates **new.hire@example.test** (Employee, manager Morgan) and copies the temporary password.

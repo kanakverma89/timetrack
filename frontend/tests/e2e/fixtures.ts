@@ -135,6 +135,11 @@ export const WEEK_KEYS = [
   'adm-policy',
   'adm-catalog',
   'adm-codes',
+  'withdraw-flow',
+  'withdraw-queue',
+  'withdraw-approved',
+  'withdraw-a11y',
+  'withdraw-isolation',
 ] as const;
 export type WeekKey = (typeof WEEK_KEYS)[number];
 

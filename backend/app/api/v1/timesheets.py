@@ -57,3 +57,23 @@ def submit_week(
             max_attempts=settings.notification_max_attempts,
         )
     return result.week
+
+
+@router.post("/weeks/{week_start_date}/withdraw", response_model=TimesheetWeekRead)
+def withdraw_week(
+    week_start_date: date,
+    request: Request,
+    background: BackgroundTasks,
+    user: CurrentUser,
+    db: DbDep,
+    settings: SettingsDep,
+) -> TimesheetWeekRead:
+    """Take back the caller's submitted week while it is still waiting for review (-> DRAFT)."""
+    result = submission_service.withdraw_week(db, user, week_start_date, settings=settings)
+    background.add_task(
+        notifications.process_pending,
+        request.app.state.session_factory,
+        request.app.state.notification_port,
+        max_attempts=settings.notification_max_attempts,
+    )
+    return result.week

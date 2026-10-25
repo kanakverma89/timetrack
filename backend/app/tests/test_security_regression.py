@@ -41,6 +41,7 @@ MATRIX: dict[tuple[str, str], set[str]] = {
     ("GET", "/earning-codes"): SESSION,
     ("GET", "/timesheets/weeks/{week_start_date}"): SESSION,
     ("POST", "/timesheets/weeks/{week_start_date}/submit"): SESSION,
+    ("POST", "/timesheets/weeks/{week_start_date}/withdraw"): SESSION,
     ("POST", "/time-entries"): SESSION,
     ("POST", "/time-entries/batch"): SESSION,
     ("PATCH", "/time-entries/{entry_id}"): SESSION,

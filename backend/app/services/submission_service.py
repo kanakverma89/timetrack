@@ -1,4 +1,4 @@
-"""Weekly submission: DRAFT/REJECTED -> SUBMITTED (spec §3.8, §8.6).
+"""Weekly submission: DRAFT/REJECTED -> SUBMITTED (spec §3.8, §8.6), and withdrawal back to DRAFT.
 
 One transaction does everything: it locks the week row, checks the lifecycle state, re-validates the
 stored entries and the configured weekly policy, flips the status, appends the audit event, enqueues
@@ -18,6 +18,7 @@ from app.core.config import Settings
 from app.core.errors import (
     BusinessRuleError,
     InvalidTransitionError,
+    NotFoundError,
     ValidationFailedError,
 )
 from app.models import ApprovalAction, User, WeekStatus
@@ -28,6 +29,7 @@ from app.services.policy import effective_policy
 
 SCOPE = "week_submit"
 EVENT_TYPE = "TIMESHEET_SUBMITTED"
+WITHDRAWN_EVENT_TYPE = "TIMESHEET_WITHDRAWN"
 
 
 @dataclass(frozen=True)
@@ -147,3 +149,56 @@ def submit_week(
     return SubmissionResult(
         timesheet_service.get_week_view(db, user, start, settings), transitioned=True
     )
+
+
+def withdraw_week(
+    db: Session, user: User, any_date: date, *, settings: Settings
+) -> SubmissionResult:
+    """SUBMITTED -> DRAFT: the employee takes back a week that is still waiting for review.
+
+    Runs under the same row lock as a manager's decision, so a withdrawal and an approval or
+    rejection of the same week can never both succeed: whoever gets the lock second sees the new
+    status and receives a 409. Only the caller's own week is ever looked up.
+    """
+    if not weeks.is_supported_date(any_date):
+        raise ValidationFailedError(
+            field_errors={
+                "week_start_date": f"Date must be between {weeks.MIN_YEAR} and {weeks.MAX_YEAR}."
+            }
+        )
+    start = weeks.week_start_for(any_date, settings.week_start_day)
+    week = repo.lock_week_by_start(db, user.id, start)
+    if week is None:
+        raise NotFoundError("Timesheet not found.")
+    if week.status is not WeekStatus.SUBMITTED:
+        db.rollback()  # release the row lock; nothing to change
+        raise InvalidTransitionError(_cannot_withdraw(week.status))
+
+    week.status = WeekStatus.DRAFT
+    week.submitted_at = None
+    repo.add_approval_event(
+        db, week_id=week.id, actor_id=user.id, action=ApprovalAction.WITHDRAWN, comment=None
+    )
+    notifications.enqueue(
+        db,
+        event_type=WITHDRAWN_EVENT_TYPE,
+        aggregate_id=week.id,
+        payload={
+            "week_id": str(week.id),
+            "employee_id": str(user.id),
+            "manager_id": str(user.manager_id) if user.manager_id else None,
+            "week_start_date": week.week_start_date.isoformat(),
+        },
+    )
+    db.commit()
+    return SubmissionResult(
+        timesheet_service.get_week_view(db, user, start, settings), transitioned=True
+    )
+
+
+def _cannot_withdraw(status: WeekStatus) -> str:
+    if status is WeekStatus.APPROVED:
+        return "This week has already been approved and can no longer be withdrawn."
+    if status is WeekStatus.REJECTED:
+        return "This week was rejected, so it is already open for editing."
+    return "This week has not been submitted, so there is nothing to withdraw."

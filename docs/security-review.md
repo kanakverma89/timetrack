@@ -22,7 +22,7 @@ Boundaries: browser ↔ TLS terminator (yours) ↔ nginx ↔ API ↔ PostgreSQL.
 `backend/app/tests/test_security_regression.py` holds a matrix of every route and the roles allowed to
 call it. It fails if a route exists that is not listed (so a new endpoint cannot ship without someone
 choosing its rule), if a listed route no longer exists, or if any of *anonymous / employee / manager /
-admin* gets a different answer than the matrix says (63 tests). It also asserts:
+admin* gets a different answer than the matrix says (65 tests). It also asserts:
 
 - every state-changing route refuses a request **without** the `X-Requested-With: timetrack` header and
   one carrying a **foreign `Origin`**, and lets a correct request through to authentication;
