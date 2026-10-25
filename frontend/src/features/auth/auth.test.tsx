@@ -1,6 +1,10 @@
-import { screen, waitFor } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SESSION_KEY, SIGNED_OUT_KEY, createQueryClient } from '../../app/queryClient';
+import { RequireAuth } from './RequireAuth';
 import { META, USER, week } from '../../test/fixtures';
 import { errorBody, mockApi } from '../../test/mockApi';
 import { renderApp } from '../../test/renderApp';
@@ -102,6 +106,8 @@ describe('authentication flow', () => {
       await screen.findByRole('heading', { name: /sign in to timetrack/i }),
     ).toBeInTheDocument();
     await waitFor(() => expect(client.getQueryData(['week', '2026-10-19'])).toBeUndefined());
+    // Signing out on purpose is remembered, so the next sign-in does not resume this page.
+    expect(client.getQueryData(SIGNED_OUT_KEY)).toBe(true);
   });
 
   it('surfaces a network failure while checking the session with a retry', async () => {
@@ -115,5 +121,40 @@ describe('authentication flow', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/unable to reach the server/i);
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+});
+
+describe('where sign-in resumes', () => {
+  /** A protected route and a /login route that reveals the state the redirect passed along. */
+  function renderProtected(options: { signedOut: boolean }) {
+    const client = createQueryClient();
+    client.setQueryData(SESSION_KEY, null); // nobody is signed in
+    if (options.signedOut) client.setQueryData(SIGNED_OUT_KEY, true);
+    function Probe() {
+      const location = useLocation();
+      return <p data-testid="from">{JSON.stringify(location.state)}</p>;
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/admin/users?page=2']}>
+          <Routes>
+            <Route element={<RequireAuth />}>
+              <Route path="/admin/users" element={<p>protected</p>} />
+            </Route>
+            <Route path="/login" element={<Probe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('remembers the page when someone arrives without a session (a deep link, an expired session)', async () => {
+    renderProtected({ signedOut: false });
+    expect(await screen.findByTestId('from')).toHaveTextContent('{"from":"/admin/users?page=2"}');
+  });
+
+  it('forgets the page when the person chose to sign out, so the next person starts at home', async () => {
+    renderProtected({ signedOut: true });
+    expect(await screen.findByTestId('from')).toHaveTextContent('null');
   });
 });

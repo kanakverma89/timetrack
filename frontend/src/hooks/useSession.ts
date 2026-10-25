@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchCurrentUser, login, logout } from '../api/endpoints';
-import { SESSION_EXPIRED_KEY, SESSION_KEY } from '../app/queryClient';
+import { SESSION_EXPIRED_KEY, SESSION_KEY, SIGNED_OUT_KEY } from '../app/queryClient';
 
 export function useSession() {
   return useQuery({
@@ -35,6 +35,9 @@ export function useLogout() {
     mutationFn: logout,
     onSettled: () => {
       clearUserData(client);
+      // Must be set before the session is cleared: clearing it makes the protected page redirect
+      // to sign-in, and that redirect reads this flag to decide whether to remember the page.
+      client.setQueryData(SIGNED_OUT_KEY, true);
       client.setQueryData(SESSION_KEY, null);
     },
   });

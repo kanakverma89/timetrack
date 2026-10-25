@@ -3,6 +3,8 @@ import { ApiError } from '../api/client';
 
 export const SESSION_KEY = ['me'] as const;
 export const SESSION_EXPIRED_KEY = ['sessionExpired'] as const;
+/** Set when the person chose to sign out, so the next sign-in does not resume where they left. */
+export const SIGNED_OUT_KEY = ['signedOut'] as const;
 
 export function createQueryClient(): QueryClient {
   const client: QueryClient = new QueryClient({
