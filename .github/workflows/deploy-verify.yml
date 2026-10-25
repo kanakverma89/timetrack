@@ -1,0 +1,36 @@
+name: deploy-verify
+
+# Manual: runs the smoke tests against the deployed demo (never against anything else).
+# Needs the repository variable DEMO_URL and the secret DEMO_EMPLOYEE_PASSWORD
+# (Settings → Secrets and variables → Actions). Nothing is printed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      DEMO_URL: ${{ vars.DEMO_URL }}
+      DEMO_EMPLOYEE_PASSWORD: ${{ secrets.DEMO_EMPLOYEE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test -c playwright.deployed.config.ts
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: smoke-traces
+          path: frontend/test-results-deployed

@@ -4,6 +4,8 @@ How to run TimeTrack outside a laptop: deploy, configure, back up, restore, reta
 Everything below that says "verified" was run (see the Phase 7 section of the implementation report);
 anything else is guidance that has not been exercised in a real production environment.
 
+> Looking for a free demo instead of a real deployment? See `docs/deployment-free-tier.md`.
+
 ## Shape of a deployment
 
 ```

@@ -95,6 +95,14 @@ There is no default account in production; sign-in for the seeded development ac
 Administrators manage people, teams, projects and tasks, earning codes and the hour policy under
 **Admin**, and read the **Audit log**; managers and administrators use **Reports** (CSV export).
 
+## Free-tier demo deployment (optional)
+
+To publish a portfolio demo for free (Vercel for the frontend, Render for the API, Neon for PostgreSQL) follow
+[`docs/deployment-free-tier.md`](docs/deployment-free-tier.md): architecture, free-tier limits, environment
+variables, step-by-step provider setup, a first-deployment check, smoke tests (`deploy-verify` workflow),
+rollback and troubleshooting. It is **prepared but not deployed**; the first visit after idle takes about a
+minute on the free tiers.
+
 ## Layout
 
 ```
