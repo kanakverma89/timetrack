@@ -78,7 +78,8 @@ password or a non-`https://` origin, and says which.
 3. **Pick the Vercel project name first** (e.g. `timetrack-demo-<yourname>`) so you know the final URL
    `https://<name>.vercel.app` for `CORS_ORIGINS`.
 4. **Render:** New → Blueprint → choose the repository (authorise access to the private repo). It proposes the
-   service `timetrack-demo-api` on the **Free** plan. Enter `DATABASE_URL` and `CORS_ORIGINS` when asked. Wait for the
+   service `timetrack-demo-api` on the **Free** plan. The region is fixed to **Ohio** in `render.yaml` (it cannot be changed after the service is created), so create
+   your Neon project in AWS US East 2 (Ohio) as well; the form does not offer a region choice. Enter `DATABASE_URL` and `CORS_ORIGINS` when asked. Wait for the
    first deploy; the health check is `/api/v1/health/ready`.
 5. **Check the API URL.** Render gives `https://timetrack-demo-api.onrender.com` unless that name is taken (then it
    adds a suffix). If yours differs, edit the `destination` in `frontend/vercel.json`, commit and push to `main`.

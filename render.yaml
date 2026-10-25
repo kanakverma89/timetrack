@@ -5,6 +5,8 @@ services:
     name: timetrack-demo-api
     runtime: docker
     plan: free
+    # Same region as the Neon database (AWS US East 2, Ohio). Cannot be changed after creation.
+    region: ohio
     branch: main
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
