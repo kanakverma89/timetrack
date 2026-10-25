@@ -13,7 +13,7 @@ Browser ──https──▶ Vercel  (static React build from frontend/dist, SPA
                      │  rewrite /api/*  → looks like the same origin to the browser
                      ▼
                    Render free web service  (Docker image backend/Dockerfile;
-                     │                        `alembic upgrade head`, then uvicorn)
+                     │                        `alembic upgrade head`, then uvicorn, via `backend/scripts/render-start.sh`)
                      │  postgresql+psycopg://…?sslmode=require
                      ▼
                    Neon free Postgres (direct connection)
@@ -52,6 +52,7 @@ Expect the **first visit after a quiet spell to take about a minute**; later req
 | --- | --- |
 | `frontend/vercel.json` | proxy `/api/*` to Render, SPA fallback, security headers (CSP etc.) |
 | `render.yaml` | Render Blueprint: Docker service, health check, env vars (secrets are *not* in it) |
+| `backend/scripts/render-start.sh` | the API's start command on Render: migrate, then serve (a script, because Render does not run `dockerCommand` through a shell; an inline `sh -c '…'` failed with exit 127 "not found") |
 | `frontend/playwright.deployed.config.ts`, `frontend/tests/smoke/deployed.spec.ts` | smoke tests against a deployed URL |
 | `.github/workflows/deploy-verify.yml` | manual workflow that runs those smoke tests |
 
@@ -170,6 +171,7 @@ and should be planned separately.
 | --- | --- |
 | First page load hangs ~1 minute | Render woke from sleep; wait, then it is fast |
 | API deploy fails: "Invalid production configuration" | `CORS_ORIGINS` not `https://…`, or `DATABASE_URL` still a placeholder; the log names which |
+| Deploy exits with status 127, `…: not found` | the start command was not a plain command; it must stay `sh scripts/render-start.sh` |
 | `ModuleNotFoundError: psycopg2` or "could not translate" | `DATABASE_URL` is missing `+psycopg` after `postgresql` |
 | Sign-in returns 403 | `CORS_ORIGINS` does not exactly match the URL in the address bar (scheme, host, no trailing slash) |
 | Sign-in works but you are logged out on the next page | the proxy did not carry the cookie: section 6 failed |

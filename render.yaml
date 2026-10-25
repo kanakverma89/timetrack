@@ -10,12 +10,10 @@ services:
     branch: main
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    # Free instances have no pre-deploy command, so migrations run at every start (idempotent).
-    # Render supplies $PORT. Forwarded headers are trusted as in the Docker image (docs: risk R-6).
-    dockerCommand: >-
-      sh -c 'alembic upgrade head &&
-      exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}
-      --proxy-headers --forwarded-allow-ips "*" --no-server-header'
+    # Migrates, then serves. A script because Render does not run dockerCommand through a shell
+    # (an inline `sh -c '...'` failed with "not found"). Render supplies $PORT.
+    # Forwarded headers are trusted as in the Docker image (docs: risk R-6).
+    dockerCommand: sh scripts/render-start.sh
     healthCheckPath: /api/v1/health/ready
     autoDeployTrigger: commit
     envVars:
