@@ -50,6 +50,7 @@
     Live demo: https://timetrack-demo-kanak.vercel.app<br>
     Source: github.com/kanakverma89/timetrack (private repository)<br>
     Written 25 October 2026, from the repository as it stood at the end of Phase 7 and the free-tier deployment.<br>
+    Updated the same day for two later changes: the enterprise-style redesign of the screens, and withdrawing a submitted week.<br>
     Free-tier limits quoted here were read from the providers' own pages on that date. They change; check the current terms before relying on them.
   </div>
 </div>
@@ -77,9 +78,10 @@
 <p>It was built as an independent, neutral-branded learning project from a written specification (<code>spec.md</code>), in seven phases, with real automated tests at every layer. It is not a copy of any company's product.</p>
 
 <h2>The life of a week</h2>
-<pre>DRAFT ──submit──▶ SUBMITTED ──approve──▶ APPROVED   (final, read-only)
-   ▲                  │
-   └── (edit, fix) ◀── reject  (REJECTED: editable again, then resubmit)</pre>
+<pre>DRAFT ──submit──▶ SUBMITTED ──approve──▶ APPROVED  (final)
+  ▲                  │  │
+  └──── withdraw ────┘  └─reject─▶ REJECTED ─(fix, resubmit)─▶ SUBMITTED</pre>
+<p>While a week is <b>SUBMITTED</b> and no manager has decided, the employee can <b>withdraw</b> it back to DRAFT to make changes. Once it is approved or rejected, withdrawal is no longer possible (a rejected week is already editable; an approved one is final).</p>
 
 <h2>Three roles</h2>
 <table>
@@ -94,9 +96,9 @@
 <table>
 <tr><th>Measure</th><th>Value</th></tr>
 <tr><td>Phases delivered</td><td>0 to 7 (foundation, dashboard, day-mode entry, week-mode entry, submission, approvals, administration/reporting/hardening), plus a free-tier deployment</td></tr>
-<tr><td>Automated tests</td><td>540 backend (pytest, real PostgreSQL), 254 component tests (Vitest), 369 end-to-end tests (Playwright on Chromium, Firefox and WebKit; 362 pass, 7 are deliberately skipped)</td></tr>
+<tr><td>Automated tests</td><td>556 backend (pytest, real PostgreSQL), 265 component tests (Vitest), 387 end-to-end test runs (129 tests, each on Chromium, Firefox and WebKit; 380 pass, 7 are deliberately skipped)</td></tr>
 <tr><td>Database migrations</td><td>5 (Alembic revisions 0001 to 0005)</td></tr>
-<tr><td>Documentation</td><td>About 1,800 lines in <code>docs/</code>: architecture, 72 numbered design decisions, API contracts, data model, testing strategy, security review, operations guide, performance report, user guide, free-tier deployment guide</td></tr>
+<tr><td>Documentation</td><td>About 1,800 lines in <code>docs/</code>: architecture, 73 numbered design decisions, API contracts, data model, testing strategy, security review, operations guide, performance report, user guide, free-tier deployment guide</td></tr>
 </table>
 
 <!-- ============================ 2 DOES ============================ -->
@@ -109,6 +111,7 @@
 <li><b>Week mode</b> (add several days at once): one project/task/code and an hours value per day, saved <b>all or nothing</b>. Errors point at the day that failed; "already logged" figures stop accidental double entry. It only adds; it never replaces existing entries.</li>
 <li><b>Edit and delete</b> entries while the week is a draft or rejected. An entry carries a version number, so if it changed elsewhere you get a "changed elsewhere" message instead of silently overwriting.</li>
 <li><b>Submit.</b> A dialog shows totals and takes an optional comment. The server re-checks every entry against the current policy (hours per entry, per day, per week) and either submits the whole week or explains exactly what to fix. After submission the week is read-only.</li>
+<li><b>Withdraw.</b> While the week still says Submitted, <b>Withdraw submission</b> (with a confirmation) turns it back into an editable draft with all its entries. The manager no longer sees it in the queue; the review history records "Withdrawn". It is refused once a manager has approved or rejected the week, and a withdrawal and a decision at the same moment cannot both succeed.</li>
 <li><b>Rejections.</b> A banner shows the reason, who rejected it and when; the week becomes editable; <b>Resubmit week</b> sends it again.</li>
 <li><b>Change password</b> (12+ characters, not a common password, not containing the name or email). Other devices are signed out.</li>
 </ul>
@@ -133,8 +136,9 @@
 <h2>Cross-cutting behaviour</h2>
 <ul>
 <li><b>Accessibility.</b> Real tables that turn into labelled cards on phones, a focus-trapping modal that returns focus, errors that receive focus, automated axe checks on every page and dialog. (No screen reader or real phone was used in testing.)</li>
+<li><b>Look and feel.</b> An enterprise-style interface: the Inter typeface (served from the application itself, so the strict content-security policy is unchanged), a dark application header with the person's initials and a marked current page, a branded sign-in page, summary tiles, and cleaner tables, badges and dialogs. It is a visual change only; page structure, wording and accessibility behaviour are the same.</li>
 <li><b>Safety against mistakes.</b> Double-clicks send one request; submissions and decisions accept an <code>Idempotency-Key</code> so a retry is harmless; a week is locked in the database while it changes.</li>
-<li><b>Notifications.</b> A submission or decision writes a row to an outbox table; a background step hands it to a delivery adapter (currently a log line, no email).</li>
+<li><b>Notifications.</b> A submission, a withdrawal or a decision writes a row to an outbox table; a background step hands it to a delivery adapter (currently a log line, no email).</li>
 </ul>
 
 <!-- ============================ 3 ARCH ============================ -->
@@ -220,6 +224,15 @@
 <li>Morgan approves. The review page history shows submitted → rejected → submitted → approved.</li>
 </ol>
 
+<h2>B2. Withdrawing a submission (Alex, Morgan)</h2>
+<ol>
+<li>Alex submits a week, then notices a missing entry.</li>
+<li>Alex clicks <b>Withdraw submission</b> and confirms. The status is Draft again; Add, Edit and Delete are back.</li>
+<li>Morgan's <b>Approvals</b> list no longer shows the week. A review page that was already open now says "Timesheet not found".</li>
+<li>Alex adds the entry and clicks <b>Submit week</b> again. Morgan sees it again, and its history reads submitted → withdrawn → submitted.</li>
+<li>After Morgan approves, <b>Withdraw submission</b> is gone, and asking the API to withdraw returns 409.</li>
+</ol>
+
 <h2>C. Onboarding a new hire (administrator)</h2>
 <ol>
 <li>Admin → Users → <b>Add user</b>: email, name, role Employee, manager Morgan. A dialog shows the temporary password once; copy it and hand it over privately.</li>
@@ -252,6 +265,7 @@
 <tr><td>Two browser windows edit the same entry</td><td>The second save gets a "changed elsewhere" message (HTTP 409).</td></tr>
 <tr><td>Double-click on Save, Submit or Create user</td><td>One request, one record.</td></tr>
 <tr><td>Two managers decide the same week at once</td><td>One wins; the other is told it was already decided.</td></tr>
+<tr><td>The employee withdraws while the manager approves</td><td>Exactly one wins: either the week is approved and the withdrawal gets 409, or it is withdrawn and the manager gets "not found".</td></tr>
 <tr><td>Week mode with one invalid day</td><td>Nothing is saved; the error points at that day.</td></tr>
 <tr><td>Employee opens an admin address</td><td>"You do not have access" in the page and 403 from the API.</td></tr>
 <tr><td>Five wrong passwords for one account</td><td>429 "Too many failed attempts" for 15 minutes.</td></tr>
@@ -276,8 +290,8 @@
 <table>
 <tr><th>Job</th><th>Runs on</th><th>Steps</th></tr>
 <tr><td><b>backend</b></td><td>Python 3.12 and 3.14 (a matrix: two parallel runs)</td><td><code>pip install -e ".[dev]"</code>, <code>ruff check</code>, <code>ruff format --check</code>, <code>mypy</code> (strict), <code>alembic upgrade head</code> then <code>alembic check</code> (migrations apply from an empty database and match the models), <code>pytest</code> (540 tests).</td></tr>
-<tr><td><b>frontend</b></td><td>Node 22, 24 and 26</td><td><code>npm ci</code>, ESLint, Prettier check, TypeScript check, Vitest (254 tests), production build.</td></tr>
-<tr><td><b>e2e</b></td><td>Python 3.12 + Node 22, after the two jobs above pass</td><td>Installs Chromium, Firefox and WebKit, then runs the full Playwright suite (369 tests) against a real API and database. Takes roughly 16 to 21 minutes on GitHub's runner; the job timeout is 45 minutes. Uploads the Playwright report if anything fails.</td></tr>
+<tr><td><b>frontend</b></td><td>Node 22, 24 and 26</td><td><code>npm ci</code>, ESLint, Prettier check, TypeScript check, Vitest (265 tests), production build.</td></tr>
+<tr><td><b>e2e</b></td><td>Python 3.12 + Node 22, after the two jobs above pass</td><td>Installs Chromium, Firefox and WebKit, then runs the full Playwright suite (387 test runs) against a real API and database. Takes roughly 16 to 21 minutes on GitHub's runner; the job timeout is 45 minutes. Uploads the Playwright report if anything fails.</td></tr>
 </table>
 <p>A green run means: code style and types are clean, every migration applies, and all backend, component and browser tests pass on all supported Python and Node versions.</p>
 
@@ -307,7 +321,7 @@
 
 <!-- ============================ 6 CHANGE ============================ -->
 <h1 id="change">6. The process of making a change</h1>
-<p>Every change in this project followed the same loop. The deployment itself produced two real examples, described below.</p>
+<p>Every change in this project followed the same loop. The deployment produced two real examples and a later feature a third; all are described below.</p>
 
 <div class="diagram">
 <svg viewBox="0 0 760 150" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" font-size="11">
@@ -360,8 +374,19 @@ cd frontend &amp;&amp; npx playwright test        # three browsers, about 8 minu
 <li><b>Lesson recorded</b> in the deployment guide's troubleshooting table.</li>
 </ol>
 
+<h2>Real example 3: withdrawing a submission (a feature)</h2>
+<p>The specification allowed withdrawal "if the business rules allow it", and the audit table already had a <code>WITHDRAWN</code> value, so the question was how the week should behave, not the schema. Steps taken, on the branch <code>feat/withdraw-submission</code>:</p>
+<ol>
+<li><b>Decide the rule</b> and write it down: only a <i>submitted</i> week can be withdrawn; approved and rejected weeks cannot (decision D-73).</li>
+<li><b>Backend.</b> A new route and service that lock the week row (the same lock a manager's decision takes), set the status back to draft, add the audit event and queue a notification. No migration was needed.</li>
+<li><b>Tests for the rules.</b> Fourteen backend tests, including the race "withdraw while the manager approves". A <i>mutation check</i> (deliberately disabling the "only submitted" test) made four of them fail, which shows they really guard the rule.</li>
+<li><b>A safety net that stopped the first full run.</b> The security regression suite lists every route and who may call it, and fails if a route is missing. The new route had to be classified before anything passed, which is exactly what that test is for.</li>
+<li><b>Frontend.</b> A button and confirmation dialog, nine component tests, and five browser tests on three browsers (including the manager's view and an accessibility scan of the dialog).</li>
+<li><b>Documentation</b> (API contract, data model, decisions, user guide, security notes) in the same branch, then the full suites: backend 556, component 265, browser 380 passed and 7 skipped.</li>
+</ol>
+
 <h2>Where decisions are written down</h2>
-<p><code>docs/decisions.md</code> holds 72 numbered decisions (D-1 to D-72), each with its reason. <code>docs/implementation-report.md</code> records, for every phase, what was verified, which defects testing found, and what was <i>not</i> verified.</p>
+<p><code>docs/decisions.md</code> holds 73 numbered decisions (D-1 to D-73), each with its reason. <code>docs/implementation-report.md</code> records, for every phase, what was verified, which defects testing found, and what was <i>not</i> verified.</p>
 
 <!-- ============================ 7 DATA ============================ -->
 <h1 id="data">7. How data gets into the database</h1>
@@ -623,6 +648,7 @@ unset DATABASE_URL SEED_PASSWORD APP_ENV</pre>
 <table>
 <tr><th>Package</th><th>Role</th></tr>
 <tr><td>React 19, React DOM, React Router 7</td><td>UI and routing.</td></tr>
+<tr><td>@fontsource-variable/inter</td><td>The Inter typeface, bundled into the build and served from the same origin (no external font service).</td></tr>
 <tr><td>TanStack Query 5</td><td>Server-state caching, retries, invalidation.</td></tr>
 <tr><td>Vite 8, @vitejs/plugin-react, TypeScript 6</td><td>Dev server, production build, type checking.</td></tr>
 <tr><td>Vitest 5, Testing Library (react, user-event, jest-dom), jsdom</td><td>Component tests.</td></tr>
