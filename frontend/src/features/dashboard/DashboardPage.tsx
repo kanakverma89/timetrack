@@ -117,7 +117,7 @@ export function DashboardPage() {
           week={data}
           actions={
             data.is_editable ? (
-              <div className="submit-action">
+              <div key="submit" className="submit-action">
                 <button
                   type="button"
                   className="btn btn-primary"
@@ -134,7 +134,9 @@ export function DashboardPage() {
                 ) : null}
               </div>
             ) : data.status === 'SUBMITTED' ? (
-              <div className="submit-action">
+              // A distinct key makes React replace the Submit button instead of restyling it, so its
+              // colour transition never plays from green to white (axe measured the half-way colour).
+              <div key="withdraw" className="submit-action">
                 <button
                   type="button"
                   className="btn btn-secondary"

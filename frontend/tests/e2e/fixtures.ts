@@ -36,7 +36,17 @@ export async function expectNoAxeViolations(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
-  const summary = results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes)`);
+  // Name the offending elements, so a failure on another machine can be diagnosed from its log.
+  const summary = results.violations.map(
+    (v) =>
+      `${v.id}: ${v.help} (${v.nodes.length} nodes) ` +
+      v.nodes
+        .map(
+          (n) =>
+            `[${n.target.join(' ')}] ${n.html.slice(0, 100)} ${JSON.stringify(n.any[0]?.data ?? {})}`,
+        )
+        .join(' | '),
+  );
   expect(summary, 'accessibility violations').toEqual([]);
 }
 
