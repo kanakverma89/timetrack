@@ -3,6 +3,13 @@ import { canReview, usePendingApprovals } from '../hooks/usePendingApprovals';
 import { useLogout, useSession } from '../hooks/useSession';
 import type { ReactNode } from 'react';
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.charAt(0) ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? '') : '';
+  return (first + last).toUpperCase() || '?';
+}
+
 export function AppShell({ appName, children }: { appName: string; children: ReactNode }) {
   const { data: user } = useSession();
   const logout = useLogout();
@@ -53,6 +60,9 @@ export function AppShell({ appName, children }: { appName: string; children: Rea
           ) : null}
           {user ? (
             <div className="user-menu">
+              <span className="avatar" aria-hidden="true">
+                {initials(user.display_name)}
+              </span>
               <span className="user-name">
                 {user.display_name}
                 <span className="muted small"> · {user.role.toLowerCase()}</span>

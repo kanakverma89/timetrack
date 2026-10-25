@@ -1,41 +1,56 @@
 :root {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans:
+    'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* Neutral surfaces */
-  --color-bg: #f4f7f8;
+  /* Neutral surfaces (slate) */
+  --color-bg: #f1f4f8;
   --color-surface: #ffffff;
-  --color-border: #cfd8dc;
-  --color-border-strong: #90a4ae;
+  --color-surface-subtle: #f8fafc;
+  --color-border: #dbe2ea;
+  --color-border-strong: #8794a6;
 
-  /* Text (all >= 4.5:1 on --color-surface) */
-  --color-text: #17262b;
-  --color-text-muted: #4a5a62;
+  /* Text (all >= 4.5:1 on --color-surface and --color-bg) */
+  --color-text: #0f1b2d;
+  --color-text-muted: #475569;
+
+  /* Application chrome: the dark header */
+  --chrome-bg: #0f1f2e;
+  --chrome-border: #1f3347;
+  --chrome-text: #e6edf3;
+  --chrome-text-muted: #b4c2d0;
+  --chrome-hover: rgb(255 255 255 / 9%);
+  --chrome-active: rgb(255 255 255 / 15%);
+  --chrome-accent: #2dd4bf;
 
   /* Teal accent (white text on it is 5.5:1) */
   --color-accent: #0f766e;
   --color-accent-hover: #0b5d57;
-  --color-accent-soft: #e0f2f1;
+  --color-accent-soft: #e6f4f2;
   --color-focus: #0b4f6c;
 
   /* Status pairs: text colour on background, each >= 7:1 */
-  --status-draft-fg: #37474f;
-  --status-draft-bg: #e3e8ea;
+  --status-draft-fg: #334155;
+  --status-draft-bg: #e8edf3;
   --status-submitted-fg: #1e3a8a;
-  --status-submitted-bg: #dbeafe;
+  --status-submitted-bg: #e0ebff;
   --status-approved-fg: #14532d;
-  --status-approved-bg: #dcfce7;
+  --status-approved-bg: #def7e5;
   --status-rejected-fg: #7f1d1d;
-  --status-rejected-bg: #fee2e2;
+  --status-rejected-bg: #fde8e8;
   --color-warning-bg: #fff4e0;
   --color-warning-border: #b45309;
   --color-error: #9b1c1c;
 
-  --radius: 10px;
+  --radius: 8px;
+  --radius-lg: 12px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --shadow: 0 1px 2px rgb(23 38 43 / 8%);
+  --shadow: 0 1px 2px rgb(15 27 45 / 6%), 0 1px 3px rgb(15 27 45 / 5%);
+  --shadow-lg: 0 10px 30px rgb(15 27 45 / 18%), 0 2px 6px rgb(15 27 45 / 10%);
 }
