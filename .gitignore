@@ -31,3 +31,11 @@ frontend/blob-report/
 # local dev process state
 .dev/
 frontend/test-results-deployed/
+
+# local tooling output
+.archify/
+.vibe-wise/
+docs/*.browser-check.json
+docs/*.delivery.json
+docs/*.finalize*.json
+docs/system-views/*.json
