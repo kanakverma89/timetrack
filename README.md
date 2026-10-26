@@ -17,6 +17,10 @@
   <a href="https://github.com/kanakverma89/timetrack/actions/workflows/audit.yml"><img alt="Dependency audit" src="https://github.com/kanakverma89/timetrack/actions/workflows/audit.yml/badge.svg"></a>
 </p>
 
+<p align="center">
+  <a href="https://timetrack-demo-kanak.vercel.app"><img alt="TimeTrack employee timesheet: a week of hours with daily totals, a weekly summary and a Submit week button" src="docs/images/screens/timesheet-week.png" width="900"></a>
+</p>
+
 ---
 
 ## About
@@ -59,6 +63,20 @@ Timesheets usually go wrong in the same few places. TimeTrack is designed around
 | **Administrator** | Create and manage users and teams · projects and tasks · earning codes · hour policy · audit log |
 
 A walkthrough of every role and scenario is in the [user guide](docs/user-guide.md).
+
+### A quick tour
+
+**Enter time** in Day mode (one date) or Week mode (several days at once). The form checks hours, earning code, project and task before it saves:
+
+<img alt="Add time entry panel with Day and Week entry modes, date, hours, earning code, project, task and work description" src="docs/images/screens/add-entry.png" width="900">
+
+**Review a week** as a manager: the days, the weekly summary and every entry are on one screen, with Approve and Reject at the top:
+
+<img alt="Manager review of a submitted week with Approve and Reject buttons, daily totals, weekly summary and time entries" src="docs/images/screens/manager-review.png" width="900">
+
+**Report on hours** by person, project, earning code or week, and download everything as CSV:
+
+<img alt="Reports page showing total, capped and non-capped hours per person with a Download CSV button" src="docs/images/screens/reports.png" width="900">
 
 ### The life of a timesheet week
 
