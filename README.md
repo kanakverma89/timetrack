@@ -1,16 +1,73 @@
-# TimeTrack — timesheet management
+<h1 align="center">TimeTrack</h1>
 
-Independent, neutral-branded weekly timesheet application. React + TypeScript (Vite) frontend,
-FastAPI backend, PostgreSQL, Playwright end-to-end tests. See [`spec.md`](spec.md) for the full
-specification and [`docs/implementation-report.md`](docs/implementation-report.md) for what is
-built and verified.
+<p align="center">
+  Weekly timesheets with a real approval trail — enter hours, submit the week, get it approved or sent back.
+</p>
 
-**Status:** Phases 0–7 (foundation, Employee Dashboard, Day- and Week-mode time entry, weekly
-submission, manager approvals, and administration, reporting and hardening). Not provided: SSO/MFA,
-TLS termination, email delivery of notifications, delegation of approvals — see
-[`docs/operations.md`](docs/operations.md) and [`docs/security-review.md`](docs/security-review.md).
+<p align="center">
+  <a href="https://timetrack-demo-kanak.vercel.app"><b>Live demo</b></a> ·
+  <a href="docs/user-guide.md">User guide</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="CHANGELOG.md">Release notes</a> ·
+  <a href="docs/development.md">Run it locally</a>
+</p>
 
-## Live demo
+<p align="center">
+  <a href="https://github.com/kanakverma89/timetrack/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kanakverma89/timetrack/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/kanakverma89/timetrack/actions/workflows/audit.yml"><img alt="Dependency audit" src="https://github.com/kanakverma89/timetrack/actions/workflows/audit.yml/badge.svg"></a>
+</p>
+
+---
+
+## About
+
+TimeTrack is a weekly timesheet application. Employees record hours against projects and tasks, submit the
+week, and a manager approves it or sends it back with a reason. Administrators manage people, teams, projects,
+earning codes and the hour policy, and can read an audit log. Managers and administrators export reports to CSV.
+
+It is a modular monolith — one React app, one FastAPI service, one PostgreSQL database — built to be easy to
+run, easy to reason about, and tested end to end. Every demo account and every row of data is synthetic.
+
+## Why it exists
+
+Timesheets usually go wrong in the same few places. TimeTrack is designed around them:
+
+| Problem | How TimeTrack handles it |
+| --- | --- |
+| Hours live in spreadsheets and chat messages, so nobody trusts the totals | One place to enter time, in **Day mode** (one day at a time) or **Week mode** (the whole grid), with limits checked before a week can be submitted |
+| Nobody knows whether a week is final | A week has one clear state — draft, submitted, approved or rejected — shown in the diagram below |
+| Approvals happen in email and leave no record | Managers approve or reject in the app; a rejection needs a written reason, and decisions are recorded |
+| Employees can't take back a mistaken submission | **Withdraw** a submitted week yourself, as long as no manager has decided |
+| Who can see or change what is unclear | Role-based access (employee, manager, admin), enforced on the server and covered by tests |
+| Policy changes are untraceable | Admin changes to the hour policy and catalogue are written to an audit log that holds no personal data |
+
+## Who it's for
+
+- **Small and mid-size teams and agencies** that bill or report by the hour and want a lightweight, self-hosted
+  alternative to a heavyweight HR suite.
+- **Employees** who want to log hours in seconds, **managers** who need a clear queue of weeks to review, and
+  **administrators** who own the rules.
+- **Engineers and QA** looking for a worked example of a full-stack app with a layered backend, a real
+  browser test suite and a CI/CD pipeline.
+
+## What you can do
+
+| Role | Capabilities |
+| --- | --- |
+| **Employee** | Weekly dashboard · add, edit and delete hours in Day or Week mode · submit a week · withdraw a submission · fix and resubmit a rejected week · change password |
+| **Manager** | Approvals queue for the people they manage · approve or reject with a reason · **Reports** with CSV export |
+| **Administrator** | Create and manage users and teams · projects and tasks · earning codes · hour policy · audit log |
+
+A walkthrough of every role and scenario is in the [user guide](docs/user-guide.md).
+
+### The life of a timesheet week
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/lifecycle-dark.svg">
+  <img alt="Timesheet week lifecycle: Draft, Submitted, Approved or Rejected; a submitted week can be withdrawn back to Draft, and a rejected week is resubmitted" src="docs/images/lifecycle-light.svg">
+</picture>
+
+## Try it
 
 **https://timetrack-demo-kanak.vercel.app** — a free-tier deployment (Vercel frontend, Render API, Neon PostgreSQL).
 All data is synthetic.
@@ -20,123 +77,108 @@ All data is synthetic.
 | Employee | `employee@example.test` | Alex Employee | add hours (Day and Week mode), submit a week, see a rejection and resubmit |
 | Manager | `manager@example.test` | Morgan Manager | **Approvals**: review, approve or reject Alex's and Sam's weeks; **Reports** with CSV export |
 
-**Password for both:** `REDACTED-DEMO-PASSWORD`
+**Password for both:** `Quartz-Kettle-Maple-8201`
 
 - **The first visit after a quiet spell can take about a minute.** The free API host puts the service to sleep after
   15 minutes without traffic; later requests are fast.
 - It is a shared demo: anyone with these logins can add and submit entries, so what you see may not be what you left.
 - The administrator account is not published. How the demo is set up, its limits and how to reset it:
-  [`docs/deployment-free-tier.md`](docs/deployment-free-tier.md). A walkthrough of every role and scenario:
-  [`docs/user-guide.md`](docs/user-guide.md).
+  [`docs/deployment-free-tier.md`](docs/deployment-free-tier.md).
 
-## Prerequisites
+## How it's built
 
-- Docker (for PostgreSQL 16), Python ≥ 3.12, Node ≥ 22.22 (22, 24 or 26; `frontend/.nvmrc` pins 22).
-  Older Node is refused at `npm ci` because the test tooling (Vitest 5, jsdom 30) needs it.
-- Free ports: 5432 (database), 8000 (API), 5173 (web); 8100/5174 for E2E runs
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+  <img alt="Architecture: users reach a React SPA over HTTPS; it calls a FastAPI service with JSON and a session cookie; the service reads and writes PostgreSQL 16 and queues notifications through an outbox table" src="docs/images/architecture-light.svg">
+</picture>
 
-## Setup
+| Layer | Choice |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite, TanStack Query |
+| Backend | FastAPI, SQLAlchemy 2, Pydantic 2, Alembic migrations |
+| Database | PostgreSQL 16 |
+| Tests | pytest · Vitest · Playwright |
+| Delivery | Docker, GitHub Actions, Vercel + Render + Neon (demo) |
+
+The backend is layered — **routers → services → repositories → models** — so business rules live in one place and
+can be unit-tested without a database. Details and the reasons behind each choice:
+[`docs/architecture.md`](docs/architecture.md) and [`docs/decisions.md`](docs/decisions.md).
+
+<details>
+<summary><b>Database schema</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/erd-dark.svg">
+  <img alt="Entity-relationship diagram of the TimeTrack database" src="docs/images/erd-light.svg">
+</picture>
+
+Composite foreign keys make the database itself reject a time entry whose employee differs from its week's owner,
+or whose task does not belong to its project. Full reference: [`docs/data-model.md`](docs/data-model.md).
+
+</details>
+
+The interactive versions of these diagrams (hover, trace a route, export) are in
+[`docs/system-views/`](docs/system-views/) — download and open the `.html` files in a browser.
+
+## Security
+
+- Local email and password sign-in; passwords hashed with **Argon2id**.
+- Sessions are random 256-bit tokens in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` in production). Only a keyed
+  digest is stored, and nothing is kept in `localStorage`.
+- **CSRF** guard on every state-changing request, a strict CORS allow-list, security headers, and login
+  **rate limiting**.
+- Authorization is deny-by-default, and the employee identity always comes from the session. A test walks the
+  whole route matrix per role.
+- Audit data is free of personal details and is protected by database triggers.
+
+Known limits, stated plainly: no SSO or MFA, no TLS termination of its own, no email delivery, no approval
+delegation. See [`docs/security-review.md`](docs/security-review.md) and [`docs/operations.md`](docs/operations.md).
+
+## Quality
+
+| Level | What | Where |
+| --- | --- | --- |
+| Unit | 330+ backend tests (week math, summaries, security helpers, rules) and 220+ frontend tests (components, forms, API client) | `backend/app/tests/`, `frontend/src/` |
+| Integration | Backend API tests against a real PostgreSQL database, plus migration, seed and database-integrity checks | `backend/app/tests/` |
+| End to end | 129 Playwright tests in Chromium, Firefox and WebKit, run against a freshly seeded database | `frontend/tests/e2e/` |
+| Smoke | A small Playwright suite run against the **deployed** demo (`deploy-verify` workflow) | `frontend/tests/smoke/` |
+| Non-functional | Lint, formatting and types (ruff, mypy, ESLint, tsc), dependency audit, a performance check, a backup and restore drill | [`docs/testing-strategy.md`](docs/testing-strategy.md) |
+
+Every push runs the **CI** workflow: backend lint, types, migrations and tests; frontend lint, types, unit tests
+and build; then the full Playwright suite. On the performance check, the dashboard read has a p95 of about 6 ms and
+an entry save about 11 ms, against a 500 ms target ([`docs/performance.md`](docs/performance.md)). The
+E2E test cases are catalogued in [`docs/e2e-test-cases.xlsx`](docs/e2e-test-cases.xlsx), with a guide to the approach
+in [`docs/playwright-architect-study-guide.md`](docs/playwright-architect-study-guide.md).
+
+## Deploying
+
+- **Production-style, on your own host:** [`compose.prod.yaml`](compose.prod.yaml) runs the database, one-shot
+  migrations, the API and an nginx front end as containers. Configuration, first administrator, backups, restore and
+  retention: [`docs/operations.md`](docs/operations.md).
+- **Free-tier demo:** Vercel (frontend), Render (API), Neon (PostgreSQL), set up by following
+  [`docs/deployment-free-tier.md`](docs/deployment-free-tier.md).
+
+## Run it locally
+
+Needs Docker, Python 3.12+ and Node 22.22+. The short version:
 
 ```bash
-cp .env.example .env          # then replace every placeholder (see comments in the file)
-docker compose up -d --wait db
-
-cd backend
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-set -a && . ../.env && set +a  # export settings for the commands below
-.venv/bin/alembic upgrade head
-.venv/bin/python scripts/seed.py --sample-entries
-
-cd ../frontend && npm ci
+cp .env.example .env            # replace every placeholder
+scripts/dev-up.sh               # database, migrations, API and web app
 ```
 
-`.env` is git-ignored. The seed script requires `SEED_PASSWORD` (≥ 12 characters) and refuses to
-run when `APP_ENV=production`.
+Full setup, seeded accounts, every check command and troubleshooting: [`docs/development.md`](docs/development.md).
 
-## Run
+## Documentation
 
-One command (after the setup above): `scripts/dev-up.sh` starts the database, migrations, API and
-web app in the background; `scripts/dev-down.sh` stops them (data is kept). In Claude Code these
-are the `/dev-up` and `/dev-down` skills. Logs are written to `.dev/`. Or run the pieces by hand:
-
-```bash
-# terminal 1 — API (http://localhost:8000, docs at /api/v1/docs in development)
-cd backend && set -a && . ../.env && set +a && .venv/bin/uvicorn app.main:app --reload --port 8000
-
-# terminal 2 — web (http://localhost:5173, proxies /api to the API)
-cd frontend && npm run dev
-```
-
-Seeded synthetic accounts (all share the password you set as `SEED_PASSWORD`):
-
-| Email | Role |
+| Start here | |
 | --- | --- |
-| `employee@example.test` | Employee (Alex; has sample weeks) |
-| `employee2@example.test` | Employee (isolation checks) |
-| `manager@example.test` | Manager (Morgan) — reviews `employee@` and `employee2@` |
-| `manager2@example.test` | Manager (Riley) — reviews only `employee3@` |
-| `employee3@example.test` | Employee (Taylor), reports to Riley |
-| `admin@example.test` | Admin |
+| [`docs/user-guide.md`](docs/user-guide.md) | How to use the app, role by role |
+| [`spec.md`](spec.md) | The product and technical specification |
+| [`docs/architecture.md`](docs/architecture.md) · [`docs/data-model.md`](docs/data-model.md) · [`docs/api-contracts.md`](docs/api-contracts.md) | How it is built |
+| [`docs/decisions.md`](docs/decisions.md) | Why it is built that way |
+| [`docs/implementation-report.md`](docs/implementation-report.md) | What is built and what was verified, including known limitations |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
 
-Sample weeks for `employee@example.test` (Monday-first): `2026-10-19` (draft), `2026-10-12`
-(draft), `2026-10-05` (submitted), `2026-09-28` (rejected). Open e.g.
-`http://localhost:5173/?week=2026-10-19`.
-
-## Checks
-
-| What | Command (from the directory shown) |
-| --- | --- |
-| Backend lint | `backend$ .venv/bin/ruff check . && .venv/bin/ruff format --check .` |
-| Backend types | `backend$ .venv/bin/mypy app scripts` |
-| Backend tests | `backend$ .venv/bin/pytest` (creates/drops `timetrack_test`) |
-| Migrations | `backend$ .venv/bin/alembic upgrade head && .venv/bin/alembic check` |
-| Frontend lint/format/types | `frontend$ npm run lint && npm run format:check && npm run typecheck` |
-| Frontend unit tests | `frontend$ npm test` |
-| Frontend build | `frontend$ npm run build` |
-| Dependency audit | `backend$ .venv/bin/pip install pip-audit && .venv/bin/pip-audit --skip-editable` and `frontend$ npm audit` (also a weekly workflow) |
-| Backup/restore drill | `scripts/backup-restore-drill.sh` (dump, restore to a throwaway database, compare) |
-| Performance (p95 vs 500 ms) | `backend$ .venv/bin/python scripts/perf_check.py` (see `docs/performance.md`) |
-| E2E (all browsers) | `frontend$ npm run test:e2e` — add `-- --project=chromium` for one browser |
-
-Backend tests and E2E need `DATABASE_URL`/`SEED_PASSWORD` exported (or a root `.env`; Playwright
-loads it automatically). E2E recreates and seeds the disposable `timetrack_e2e` database on every
-run. Destructive helpers only accept database names ending in `_test` or `_e2e`.
-First-time Playwright setup: `cd frontend && npx playwright install chromium firefox webkit`.
-
-## Running it for real
-
-[`docs/operations.md`](docs/operations.md) covers deployment (`compose.prod.yaml`: database, one-shot
-migrations, API, nginx), configuration, creating the first administrator, backups and restore,
-retention (`backend/scripts/maintain.py purge | anonymise-user | create-admin`) and known limits.
-There is no default account in production; sign-in for the seeded development accounts uses
-`SEED_PASSWORD`, which the seed refuses to use in production.
-
-Administrators manage people, teams, projects and tasks, earning codes and the hour policy under
-**Admin**, and read the **Audit log**; managers and administrators use **Reports** (CSV export).
-
-## Free-tier demo deployment (optional)
-
-To publish a portfolio demo for free (Vercel for the frontend, Render for the API, Neon for PostgreSQL) follow
-[`docs/deployment-free-tier.md`](docs/deployment-free-tier.md): architecture, free-tier limits, environment
-variables, step-by-step provider setup, a first-deployment check, smoke tests (`deploy-verify` workflow),
-rollback and troubleshooting. It is **prepared but not deployed**; the first visit after idle takes about a
-minute on the free tiers.
-
-## Layout
-
-```
-backend/   FastAPI app (api → services → repositories → models), Alembic, scripts, tests
-frontend/  React app (api client, features/, components/), Vitest tests, Playwright e2e
-docs/      plan, architecture, decisions, data model, API contracts, testing, report
-```
-
-## Troubleshooting
-
-- **`POSTGRES_PASSWORD` error from compose** — create `.env` from `.env.example` first.
-- **Port 5432 in use** — set `DB_PORT` and the port in `DATABASE_URL`.
-- **401 right after login in a custom setup** — the session cookie is `SameSite=Lax`; use the Vite
-  proxy (same origin) or add your web origin to `CORS_ORIGINS`.
-- **429 on login** — five failed attempts per address+email per 15 minutes; restart the API to
-  reset the in-memory counter in development.
-- **Playwright "Executable doesn't exist"** — run the `playwright install` command above.
-- **Alembic/pytest cannot connect** — export the environment (`set -a && . ../.env && set +a`).
+**Status:** Phases 0–7 complete (foundation, Employee Dashboard, Day and Week mode, weekly submission, manager
+approvals, administration, reporting and hardening), plus withdrawing a submission and the enterprise UI refresh.
