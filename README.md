@@ -156,11 +156,14 @@ delegation. See [`docs/security-review.md`](docs/security-review.md) and [`docs/
 
 | Level | What | Where |
 | --- | --- | --- |
-| Unit | 330+ backend tests (week math, summaries, security helpers, rules) and 220+ frontend tests (components, forms, API client) | `backend/app/tests/`, `frontend/src/` |
+| Unit | Backend: week math, summaries, security helpers, rules. Frontend: components, forms, API client | `backend/app/tests/`, `frontend/src/` |
 | Integration | Backend API tests against a real PostgreSQL database, plus migration, seed and database-integrity checks | `backend/app/tests/` |
-| End to end | 129 Playwright tests in Chromium, Firefox and WebKit, run against a freshly seeded database | `frontend/tests/e2e/` |
+| End to end | Playwright journeys for all three roles in Chromium, Firefox and WebKit, run against a freshly seeded database | `frontend/tests/e2e/` |
 | Smoke | A small Playwright suite run against the **deployed** demo (`deploy-verify` workflow) | `frontend/tests/smoke/` |
 | Non-functional | Lint, formatting and types (ruff, mypy, ESLint, tsc), dependency audit, a performance check, a backup and restore drill | [`docs/testing-strategy.md`](docs/testing-strategy.md) |
+
+At the Phase 7 sign-off the suites held **540 backend tests, 254 frontend tests and 369 Playwright tests** (362 passed,
+7 skipped); see [`docs/implementation-report.md`](docs/implementation-report.md). Later work added more.
 
 Every push runs the **CI** workflow: backend lint, types, migrations and tests; frontend lint, types, unit tests
 and build; then the full Playwright suite. On the performance check, the dashboard read has a p95 of about 6 ms and
